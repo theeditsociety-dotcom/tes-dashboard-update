@@ -1,0 +1,2096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>The Edit Society — Operating Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+// Enable SheetJS cell styling (required for colors/fonts)
+if(typeof XLSX!=='undefined'&&XLSX.SSF){XLSX.SSF._table=XLSX.SSF._table||{};}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{--ink:#1a1210;--paper:#fdf9f4;--cream:#f5efe6;--mist:#e8ddd0;--gold:#8b1a1a;--gold-d:#6b1212;--sage:#2e5fa3;--blush:#2e8b57;--amber:#c07a10;--char:#6b5b4e;--good:#1a5c3a;--warn:#c07a10;--danger:#8b1a1a;--gbg:#d4ede0;--wbg:#fef0d0;--dbg:#fae8e0}
+[data-theme=dark]{--ink:#f0ede6;--paper:#110d0c;--cream:#1e1713;--mist:#2e2520;--char:#a09080}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;transition:background .3s,color .3s}
+.fd{font-family:'Playfair Display',serif}.fm{font-family:'DM Mono',monospace}
+#sidebar{position:fixed;left:0;top:0;height:100vh;width:210px;background:var(--ink);color:var(--paper);display:flex;flex-direction:column;z-index:100;transition:transform .3s}
+[data-theme=dark] #sidebar{background:#0d0a09;border-right:1px solid var(--mist)}
+.sl{padding:22px 20px 16px;border-bottom:1px solid rgba(255,255,255,.07)}
+.sn{font-family:'Playfair Display',serif;font-size:13.5px;letter-spacing:.14em;text-transform:uppercase;color:#f2ead8}
+.ss{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.25);margin-top:3px}
+.ns{padding:12px 0 5px}
+.nl{font-size:9px;letter-spacing:.17em;text-transform:uppercase;color:rgba(255,255,255,.2);padding:0 20px 6px}
+.ni{display:flex;align-items:center;gap:9px;padding:8px 20px;font-size:12.5px;color:rgba(255,255,255,.48);cursor:pointer;transition:all .15s;border-left:2px solid transparent}
+.ni:hover{color:rgba(255,255,255,.85);background:rgba(255,255,255,.04)}
+.ni.active{color:#f2ead8;border-left-color:#8b1a1a;background:rgba(139,26,26,.1)}
+.ni .ic{width:14px;text-align:center;font-size:12px;flex-shrink:0}
+.nfoot{margin-top:auto;padding:16px 20px;border-top:1px solid rgba(255,255,255,.05)}
+.nfl{font-size:9px;color:rgba(255,255,255,.16);letter-spacing:.09em;text-transform:uppercase}
+.nfv{font-size:12px;color:rgba(255,255,255,.38);margin-top:3px}
+#main{margin-left:210px;min-height:100vh}
+.topbar{position:sticky;top:0;z-index:50;background:var(--paper);border-bottom:1px solid var(--mist);padding:0 26px;height:52px;display:flex;align-items:center;justify-content:space-between;transition:background .3s}
+.tbt{font-family:'Playfair Display',serif;font-size:16px;color:var(--ink)}
+.tbr{display:flex;align-items:center;gap:9px}
+.bg{padding:5px 12px;border-radius:6px;font-size:12px;font-weight:500;border:1px solid var(--mist);background:transparent;color:var(--ink);cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
+.bg:hover{background:var(--mist)}
+.bp{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;background:var(--gold);color:#f2ead8;border:none;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
+.bp:hover{background:var(--gold-d)}
+.page{display:none;padding:26px}
+.page.active{display:block;animation:fu .35s ease forwards}
+@keyframes fu{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.card{background:var(--cream);border:1px solid var(--mist);border-radius:11px;transition:background .3s,border-color .3s}
+.kg{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:20px}
+.kc{background:var(--cream);border:1px solid var(--mist);border-radius:11px;padding:16px 18px;transition:all .2s;position:relative;overflow:hidden}
+.kc::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:11px 11px 0 0;background:var(--gold)}
+.kc:nth-child(2)::after{background:var(--sage)}.kc:nth-child(3)::after{background:var(--good)}.kc:nth-child(4)::after{background:var(--amber)}
+.kc:nth-child(5)::after{background:var(--char)}.kc:nth-child(6)::after{background:var(--blush)}.kc:nth-child(7)::after{background:#b02020}.kc:nth-child(8)::after{background:var(--sage)}
+.kc:hover{transform:translateY(-2px);box-shadow:0 5px 22px rgba(139,26,26,.07)}
+.kl{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:5px}
+.kv{font-family:'Playfair Display',serif;font-size:23px;color:var(--ink);line-height:1;margin-bottom:3px}
+.ks{font-size:11px;color:var(--char);opacity:.65}
+.kb{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;margin-top:5px}
+.bg-good{background:var(--gbg);color:var(--good)}.bg-warn{background:var(--wbg);color:var(--warn)}.bg-danger{background:var(--dbg);color:var(--danger)}.bg-neu{background:var(--mist);color:var(--char)}
+.stitle{font-family:'Playfair Display',serif;font-size:18px;color:var(--ink);margin-bottom:3px}
+.ssub{font-size:12px;color:var(--char);opacity:.55;margin-bottom:18px}
+.dt{width:100%;border-collapse:collapse}
+.dt th{text-align:left;padding:9px 13px;font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--gold);font-weight:600;border-bottom:1px solid var(--mist)}
+.dt td{padding:10px 13px;font-size:12.5px;border-bottom:1px solid var(--mist);vertical-align:middle}
+.dt tr:last-child td{border-bottom:none}
+.dt tr:hover td{background:rgba(139,26,26,.025)}
+.num{font-family:'DM Mono',monospace;font-size:11.5px}
+.ic2{padding:12px 14px;border-radius:8px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start}
+.ic2 .ii{font-size:16px;margin-top:1px;flex-shrink:0}
+.ic2 .it{font-size:12.5px;line-height:1.5}
+.ic2 .it strong{font-weight:600;display:block;margin-bottom:2px;font-size:11.5px}
+.i-good{background:rgba(26,92,58,.07);border:1px solid rgba(26,92,58,.17)}
+.i-warn{background:rgba(192,122,16,.07);border:1px solid rgba(192,122,16,.17)}
+.i-danger{background:rgba(139,26,26,.07);border:1px solid rgba(139,26,26,.17)}
+.i-info{background:rgba(46,95,163,.07);border:1px solid rgba(46,95,163,.17)}
+.pb{height:5px;background:var(--mist);border-radius:3px;overflow:hidden}
+.pf{height:100%;border-radius:3px;transition:width .7s ease}
+.pr{background:var(--danger)}.pa{background:var(--amber)}.pg{background:var(--good)}.pb2{background:var(--sage)}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;background:var(--mist);border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--gold);cursor:pointer;box-shadow:0 2px 5px rgba(139,26,26,.3)}
+input[type=number],input[type=text],select{background:var(--paper);border:1px solid var(--mist);border-radius:7px;padding:7px 10px;font-size:12.5px;color:var(--ink);width:100%;outline:none;font-family:'DM Sans',sans-serif;transition:border-color .15s}
+input[type=number]:focus,input[type=text]:focus,select:focus{border-color:var(--gold)}
+.ts{position:relative;width:37px;height:20px;cursor:pointer}
+.ts input{opacity:0;width:0;height:0}
+.tsl{position:absolute;inset:0;background:var(--mist);border-radius:10px;transition:.3s}
+.tsl:before{content:'';position:absolute;left:3px;bottom:3px;width:14px;height:14px;border-radius:50%;background:white;transition:.3s}
+input:checked+.tsl{background:var(--gold)}
+input:checked+.tsl:before{transform:translateX(17px)}
+.tabbar{display:flex;border-bottom:1px solid var(--mist);margin-bottom:20px}
+.tab{padding:8px 17px;font-size:12.5px;font-weight:500;cursor:pointer;color:var(--char);border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px}
+.tab:hover{color:var(--ink)}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.g64{display:grid;grid-template-columns:64fr 36fr;gap:16px}
+.g60{display:grid;grid-template-columns:60fr 40fr;gap:16px}
+@media(max-width:960px){.g2,.g3,.g64,.g60{grid-template-columns:1fr}}
+.cpill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.pdrop1{background:rgba(139,26,26,.12);color:#8b1a1a}
+.pramadan{background:rgba(46,95,163,.12);color:#2e5fa3}
+.pnewcoll{background:rgba(46,139,87,.12);color:#2e8b57}
+.sr{padding:17px;border-radius:9px;background:linear-gradient(135deg,rgba(139,26,26,.06),rgba(139,26,26,.02));border:1px solid rgba(139,26,26,.14)}
+.li{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-radius:8px;margin-bottom:7px;border:1px solid var(--mist);background:var(--cream)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--mist);border-radius:3px}
+
+/* ── RESPONSIVE ── */
+/* Default (unpinned): sidebar hidden, toggled by hamburger */
+#sidebar{transform:translateX(-210px)}
+#sidebar.open{transform:translateX(0)}
+#main{margin-left:0}
+#menu-btn{display:flex!important}
+
+/* Pinned: sidebar always visible, content pushed right */
+body.pinned #sidebar{transform:translateX(0)!important}
+body.pinned #main{margin-left:210px}
+body.pinned #menu-btn{display:none!important}
+body.pinned #sidebar-overlay{display:none!important}
+body.pinned #pin-btn{color:#f2ead8!important;background:rgba(139,26,26,.4)!important;border-color:rgba(139,26,26,.6)!important}
+
+@media(max-width:768px){
+  .page{padding:16px}
+  .kg{grid-template-columns:1fr 1fr}
+  .topbar{padding:0 14px}
+}
+/* ── EDITOR STYLES ── */
+.ed-coll{background:var(--cream);border:1px solid var(--mist);border-radius:12px;margin-bottom:20px;overflow:hidden}
+.ed-coll-head{padding:14px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--mist);flex-wrap:wrap}
+.ed-coll-color{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.4);cursor:pointer;flex-shrink:0}
+.ed-field{background:var(--paper);border:1px solid var(--mist);border-radius:7px;padding:6px 10px;font-size:13px;color:var(--ink);font-family:'DM Sans',sans-serif;outline:none;transition:border-color .15s}
+.ed-field:focus{border-color:var(--gold)}
+.ed-field.sm{width:80px}.ed-field.md{width:110px}.ed-field.lg{width:160px}.ed-field.xl{width:100%}
+.ed-lbl{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);font-weight:600;display:block;margin-bottom:4px}
+.ed-oh-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 18px;border-bottom:1px solid var(--mist);background:rgba(139,26,26,.02)}
+.ed-prod-row{display:flex;align-items:flex-start;gap:8px;padding:12px 18px;border-bottom:1px solid var(--mist);flex-wrap:wrap}
+.ed-prod-row:last-child{border-bottom:none}
+.ed-prod-row:hover{background:rgba(139,26,26,.02)}
+.ed-tier-row{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.ed-tier-row:last-child{margin-bottom:0}
+.btn-sm{padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap}
+.btn-add{background:rgba(26,92,58,.08);color:var(--good);border-color:rgba(26,92,58,.25)}
+.btn-add:hover{background:rgba(26,92,58,.15)}
+.btn-del{background:rgba(139,26,26,.07);color:var(--danger);border-color:rgba(139,26,26,.2)}
+.btn-del:hover{background:rgba(139,26,26,.14)}
+.btn-warn{background:rgba(192,122,16,.08);color:var(--warn);border-color:rgba(192,122,16,.25)}
+.save-flash{position:fixed;bottom:18px;right:18px;background:var(--good);color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;font-family:'DM Sans',sans-serif}
+.save-flash.show{opacity:1}
+/* Shared campaign cards */
+.sm-card{background:var(--cream);border:1px solid var(--mist);border-radius:12px;margin-bottom:16px;overflow:hidden}
+.sm-head{padding:14px 18px;border-bottom:1px solid var(--mist);display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:rgba(46,95,163,.04)}
+.sm-budget-bar{height:7px;background:var(--mist);border-radius:4px;overflow:hidden;margin:8px 0 4px}
+.sm-budget-locked{height:100%;border-radius:4px;background:var(--good);transition:width .5s}
+.tranche-row{padding:12px 18px;border-bottom:1px solid var(--mist);display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(26,92,58,.02)}
+.tranche-row:hover{background:rgba(26,92,58,.04)}
+.pending-box{margin:14px 18px;padding:13px 15px;border-radius:9px;background:rgba(192,122,16,.07);border:1px solid rgba(192,122,16,.25)}
+.coll-check{display:flex;align-items:center;gap:7px;padding:5px 0;font-size:12px}
+.coll-check input[type=checkbox]{width:13px;height:13px;accent-color:var(--sage);cursor:pointer;flex-shrink:0}
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <!-- Brand Logo -->
+  <div style="border-bottom:1px solid rgba(255,255,255,.07)">
+    <div style="background:#8b1a1a;padding:18px 20px 14px">
+      <div style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:#f2ead8;line-height:1;letter-spacing:.01em">The Edit</div>
+      <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:600;color:#f2ead8;letter-spacing:.12em;margin-top:2px">Society</div>
+    </div>
+    <div style="padding:8px 20px 10px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.25)">Operating System · SS26</div>
+    </div>
+  </div>
+  <div class="ns"><div class="nl">Overview</div><div class="ni active" onclick="nav('exec')"><span class="ic">◈</span>Executive</div></div>
+  <div class="ns">
+    <div class="nl">Operations</div>
+    <div class="ni" onclick="nav('products')"><span class="ic">◧</span>Products</div>
+    <div class="ni" onclick="nav('collections')"><span class="ic">◫</span>Collections</div>
+    <div class="ni" onclick="nav('inventory')"><span class="ic">◩</span>Inventory</div>
+    <div class="ni" onclick="nav('marketing')"><span class="ic">◪</span>Marketing</div>
+  </div>
+  <div class="ns">
+    <div class="nl">Intelligence</div>
+    <div class="ni" onclick="nav('planning')"><span class="ic">◬</span>Production Plan</div>
+    <div class="ni" onclick="nav('simulator')"><span class="ic">◭</span>Simulator</div>
+    <div class="ni" onclick="nav('ai')"><span class="ic">✦</span>AI Insights</div>
+    <div class="ni" onclick="nav('leaks')"><span class="ic">◎</span>Profit Leaks</div>
+  </div>
+  <div class="ns">
+    <div class="nl">Data</div>
+    <div class="ni" onclick="nav('shared')"><span class="ic">⇄</span>Shared Campaigns</div>
+    <div class="ni" onclick="nav('editor')"><span class="ic">✎</span>Edit Data</div>
+  </div>
+  <div class="nfoot">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div><div class="nfl">Season</div><div class="nfv">Spring / Summer 2026</div></div>
+      <button id="pin-btn" onclick="togglePin()" title="Pin sidebar"
+        style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.45);border-radius:6px;padding:5px 9px;cursor:pointer;font-size:13px;transition:all .2s;font-family:'DM Sans',sans-serif">
+        📌
+      </button>
+    </div>
+  </div>
+</nav>
+<div id="main">
+  <!-- Sidebar overlay (mobile) -->
+  <div id="sidebar-overlay" onclick="closeSidebar()"
+    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;transition:opacity .25s"></div>
+
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:9px">
+      <button class="bg" id="menu-btn" style="display:none;align-items:center;justify-content:center;width:34px;height:34px;padding:0;font-size:18px" onclick="toggleSidebar()">☰</button>
+      <span class="tbt" id="ptitle">Executive Dashboard</span>
+    </div>
+    <div class="tbr">
+      <span style="font-size:11px;color:var(--char);opacity:.4">cost6 · 15 SKUs loaded</span>
+      <label class="ts" title="Dark mode"><input type="checkbox" id="dtog" onchange="toggleDark(this)"/><span class="tsl"></span></label>
+      <button id="undo-btn" class="bg" onclick="undo()" disabled style="opacity:.35" title="Nothing to undo">↩ Undo</button>
+      <button class="bp" onclick="exportExcel()">↓ Excel</button>
+    </div>
+  </div>
+
+  <!-- EXECUTIVE -->
+  <div class="page active" id="page-exec">
+    <div style="margin-bottom:22px">
+      <div class="fd" style="font-size:25px">Good morning, TES.</div>
+      <div style="font-size:13px;color:var(--char);opacity:.5;margin-top:3px">3 collections · 15 SKUs · real cost6 data</div>
+    </div>
+    <div class="kg" id="kpi-grid"></div>
+    <div class="g64" style="margin-bottom:18px">
+      <div class="card" style="padding:20px">
+        <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:13px">Revenue vs Profit by Collection</div>
+        <div style="position:relative;height:200px"><canvas id="c-rp"></canvas></div>
+      </div>
+      <div class="card" style="padding:20px">
+        <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:13px">Margin Distribution</div>
+        <div style="position:relative;height:200px"><canvas id="c-mp"></canvas></div>
+      </div>
+    </div>
+    <div class="card" style="padding:20px;margin-bottom:18px">
+      <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:13px">Net Profit per Product (EGP)</div>
+      <div style="position:relative;height:185px"><canvas id="c-pp"></canvas></div>
+    </div>
+    <div class="g2"><div class="card" style="padding:17px" id="top-card"></div><div class="card" style="padding:17px" id="worst-card"></div></div>
+  </div>
+
+  <!-- PRODUCTS -->
+  <div class="page" id="page-products">
+    <div class="stitle">Product Profit Engine</div>
+    <div class="ssub">Exact COG breakdown from cost6 — fabric×meters, mfg, zipper, sample, TR+LB, overhead share, pricing tiers</div>
+    <div class="tabbar" id="prod-tabs"></div>
+    <div id="prod-wrap"></div>
+  </div>
+
+  <!-- COLLECTIONS -->
+  <div class="page" id="page-collections">
+    <div class="stitle">Collection Intelligence</div>
+    <div class="ssub">Overhead breakdown, product P&L contribution, best/worst per collection</div>
+    <div id="coll-wrap"></div>
+  </div>
+
+  <!-- INVENTORY -->
+  <div class="page" id="page-inventory">
+    <div class="stitle">Inventory Intelligence</div>
+    <div class="ssub">Units produced, sold by tier, remaining — sell-through and dead stock detection</div>
+    <div id="inv-wrap"></div>
+  </div>
+
+  <!-- MARKETING -->
+  <div class="page" id="page-marketing">
+    <div class="stitle">Marketing &amp; ROAS Engine</div>
+    <div class="ssub">Ads + marketing + photoshoot + UGC per collection — true ROAS analysis</div>
+    <div id="mkt-wrap"></div>
+  </div>
+
+  <!-- PLANNING -->
+  <div class="page" id="page-planning">
+    <div class="stitle">Production Planning Engine</div>
+    <div class="ssub">Input costs → get optimal price, breakeven units, and suggested production qty</div>
+    <div class="g60">
+      <div class="card" style="padding:24px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:16px">Cost Builder</div>
+        <div class="g2" style="gap:13px;margin-bottom:13px">
+          <div><label style="font-size:9px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:4px">Fabric/meter (EGP)</label><input type="number" id="pf" value="175" oninput="calcPlan()"/></div>
+          <div><label style="font-size:9px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:4px">Meters</label><input type="number" id="pm" value="2.0" step="0.1" oninput="calcPlan()"/></div>
+          <div><label style="font-size:9px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:4px">Mfg (EGP)</label><input type="number" id="pmfg" value="220" oninput="calcPlan()"/></div>
+          <div><label style="font-size:9px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:4px">Zipper/extras</label><input type="number" id="pz" value="30" oninput="calcPlan()"/></div>
+          <div><label style="font-size:9px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:4px">Sample cost</label><input type="number" id="ps" value="1200" oninput="calcPlan()"/></div>
+          <div><label style="font-size:9px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:4px">Production qty</label><input type="number" id="pq" value="25" oninput="calcPlan()"/></div>
+          <div><label style="font-size:9px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:4px">Target margin %</label><input type="number" id="pmarg" value="40" oninput="calcPlan()"/></div>
+          <div><label style="font-size:9px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:4px">OH allocation (EGP)</label><input type="number" id="poh" value="5000" oninput="calcPlan()"/></div>
+        </div>
+        <div style="font-size:10px;color:var(--char);opacity:.45;margin-top:6px">TR (20 EGP) + LB (7.75 EGP) auto-applied per unit</div>
+      </div>
+      <div>
+        <div class="sr" style="margin-bottom:13px" id="plan-out"></div>
+        <div class="card" style="padding:17px">
+          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:11px">Break-Even Chart</div>
+          <div style="position:relative;height:170px"><canvas id="c-bk"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIMULATOR -->
+  <div class="page" id="page-simulator">
+    <div class="stitle">Scenario Simulator</div>
+    <div class="ssub">Real-time what-if analysis — adjust any variable, see instant P&L</div>
+    <div class="g60">
+      <div class="card" style="padding:24px"><div style="font-size:13px;font-weight:600;margin-bottom:20px">Adjust Variables</div><div id="sim-sliders"></div></div>
+      <div>
+        <div class="sr" style="margin-bottom:13px" id="sim-out"></div>
+        <div class="card" style="padding:17px">
+          <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:11px">Price Sensitivity</div>
+          <div style="position:relative;height:170px"><canvas id="c-sim"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI -->
+  <div class="page" id="page-ai">
+    <div class="stitle">AI Decision Engine</div>
+    <div class="ssub">Auto-generated recommendations based on exact cost6 numbers</div>
+    <div class="g2" id="ai-wrap"></div>
+  </div>
+
+  <!-- LEAKS -->
+  <div class="page" id="page-leaks">
+    <div class="stitle">Profit Leak Detector</div>
+    <div class="ssub">Automatically surfaces hidden losses across all collections</div>
+    <div class="g2"><div id="leaks-list"></div><div><div class="card" style="padding:20px;margin-bottom:13px"><div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:13px">Leak Breakdown (EGP)</div><div style="position:relative;height:190px"><canvas id="c-lk"></canvas></div></div><div id="leak-sum"></div></div></div>
+  </div>
+
+  <!-- SHARED CAMPAIGNS -->
+  <div class="page" id="page-shared">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:22px">
+      <div>
+        <div class="stitle" style="margin-bottom:2px">Shared Marketing Campaigns</div>
+        <div class="ssub" style="margin-bottom:0">One campaign can span multiple collections. Lock actual spend as tranches — allocation is revenue-weighted and frozen. Future spend stays pending until locked.</div>
+      </div>
+      <button class="bp" onclick="addCampaign()" style="background:var(--sage)">+ New Campaign</button>
+    </div>
+    <div id="sm-wrap"></div>
+    <div id="sm-summary-wrap" style="margin-top:20px"></div>
+  </div>
+
+  <!-- DATA EDITOR -->
+  <div class="page" id="page-editor">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:22px">
+      <div>
+        <div class="stitle" style="margin-bottom:2px">Data Editor</div>
+        <div class="ssub" style="margin-bottom:0">Edit collections, products, prices, quantities, overheads — changes update all pages instantly and auto-save</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="bp" onclick="addCollection()" style="background:var(--blush)">+ New Collection</button>
+      </div>
+    </div>
+    <div id="editor-wrap"></div>
+  </div>
+
+  <!-- CONFIRM MODAL -->
+  <div id="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(26,18,16,.55);z-index:300;align-items:center;justify-content:center">
+    <div style="background:var(--paper);border-radius:14px;padding:28px;width:360px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.2);border-top:3px solid var(--gold)">
+      <div class="fd" style="font-size:18px;margin-bottom:6px" id="modal-title">Confirm</div>
+      <div style="font-size:13px;color:var(--char);opacity:.7;margin-bottom:20px;line-height:1.5" id="modal-msg"></div>
+      <div style="display:flex;gap:9px;justify-content:flex-end">
+        <button class="bg" onclick="closeModal()">Cancel</button>
+        <button class="bp" id="modal-ok" style="background:var(--danger)">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="save-flash" id="save-flash"></div>
+
+<script>
+// ═══════════════════════════ REAL DATA FROM cost6.html ═══════════════════════════
+const TR=20, LB=7.75;
+const DEFAULT_COLLS=[
+  {id:'drop1',name:'1st Drop',color:'#8B1A1A',pill:'pdrop1',
+   oh:{ads:30000,marketing:27000,photoshoot:26950,ugc:0},
+   products:[
+    {name:'Black Jacket Milton',   fabric:200,meters:1.6,mfg:200,zipper:36, sample:1450,qty:19,price:1850,tiers:[{qty:10,disc:0,sold:10},{qty:9,disc:.20,sold:9}],giveaway:0},
+    {name:'Coat Gabardine',        fabric:175,meters:4.0,mfg:350,zipper:15, sample:1200,qty:22,price:2500,tiers:[{qty:12,disc:0,sold:12},{qty:10,disc:.20,sold:10}],giveaway:0},
+    {name:'Suede Shirt',           fabric:115,meters:1.6,mfg:170,zipper:0,  sample:1200,qty:20,price:1050,tiers:[{qty:20,disc:.20,sold:20}],giveaway:0},
+    {name:'Faux Leather Jacket',   fabric:170,meters:2.0,mfg:240,zipper:0,  sample:1200,qty:20,price:1850,tiers:[{qty:20,disc:.20,sold:20}],giveaway:0},
+    {name:'Grey Jacket Gokh',      fabric:175,meters:1.0,mfg:220,zipper:39, sample:2100,qty:60,price:1400,tiers:[{qty:30,disc:0,sold:30},{qty:20,disc:.20,sold:20},{qty:10,disc:.30,sold:10}],giveaway:0},
+    {name:'Black Shirt Derby',     fabric:304,meters:1.0,mfg:150,zipper:30, sample:1200,qty:5, price:800, tiers:[{qty:5,disc:.20,sold:5}],giveaway:0},
+    {name:'Suede Jacket',          fabric:115,meters:2.0,mfg:295,zipper:0,  sample:1200,qty:10,price:1500,tiers:[{qty:10,disc:.20,sold:10}],giveaway:0},
+  ]},
+  {id:'ramadan',name:'Ramadan 2026',color:'#2E5FA3',pill:'pramadan',
+   oh:{ads:15000,marketing:16000,photoshoot:0,ugc:0},
+   products:[
+    {name:'Milton Kaftan',       fabric:0,meters:0,mfg:820,zipper:0,sample:0,qty:25,price:2000,tiers:[{qty:25,disc:.10,sold:25}],giveaway:0},
+    {name:'Milton Kaftan plain', fabric:0,meters:0,mfg:750,zipper:0,sample:0,qty:9, price:1900,tiers:[{qty:9,disc:.10,sold:9}],giveaway:0},
+    {name:'Gokh Coat',          fabric:0,meters:0,mfg:590,zipper:0,sample:0,qty:40,price:1600,tiers:[{qty:40,disc:.10,sold:40}],giveaway:0},
+    {name:'Top with lace',       fabric:0,meters:0,mfg:310,zipper:0,sample:0,qty:18,price:750, tiers:[{qty:18,disc:.10,sold:18}],giveaway:0},
+  ]},
+  {id:'newcoll',name:'New Collection',color:'#2E8B57',pill:'pnewcoll',
+   oh:{ads:15000,marketing:16000,photoshoot:30000,ugc:0},
+   products:[
+    {name:'Chiffon Blouse',fabric:60, meters:1.7,mfg:240,zipper:0,sample:1200,qty:30,price:1000,tiers:[{qty:30,disc:.10,sold:30}],giveaway:0},
+    {name:'Cap',           fabric:60, meters:1.7,mfg:180,zipper:0,sample:1200,qty:30,price:800, tiers:[{qty:30,disc:.10,sold:30}],giveaway:0},
+    {name:'Chiffon Jacket',fabric:260,meters:1.7,mfg:260,zipper:0,sample:1200,qty:30,price:1850,tiers:[{qty:30,disc:.10,sold:30}],giveaway:0},
+    {name:'Black Dantil',  fabric:90, meters:1.5,mfg:210,zipper:0,sample:1200,qty:30,price:950, tiers:[{qty:30,disc:.10,sold:30}],giveaway:0},
+  ]}
+];
+
+// Deep clone helper
+function deepClone(x){return JSON.parse(JSON.stringify(x));}
+
+// ── DEFAULT SHARED MARKETING ──
+const DEFAULT_SM=[];
+
+// ── SUPABASE CONFIG (reused from cost6) ──
+const SUPA_URL='https://aqjvbuacxcdiuohuxkof.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxanZidWFjeGNkaXVvaHV4a29mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MzMzNTIsImV4cCI6MjA4OTEwOTM1Mn0.vwn5oPVRRtndQA4-Icp-Wsz2dEtoVxjiudER1vufNck';
+const SUPA_HDR={'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY};
+const SAVE_KEY='tes_dashboard_v1'; // different key from cost6 so they don't collide
+const LS_KEY='tes_dash_v4';
+
+// ── STATE ──
+let COLLS=deepClone(DEFAULT_COLLS);
+let SM=deepClone(DEFAULT_SM);
+let EDITOR_COLL_ID=null; // active collection in editor (null = first)
+
+// ── SAVE INDICATOR ──
+function showFlash(msg,ok=true){
+  const fl=document.getElementById('save-flash');
+  fl.textContent=msg;
+  fl.style.background=ok?'var(--good)':'var(--warn)';
+  fl.classList.add('show');
+  clearTimeout(fl._t);
+  fl._t=setTimeout(()=>fl.classList.remove('show'),ok?1800:3500);
+}
+
+// ── SAVE: cloud first, localStorage fallback ──
+async function saveData(){
+  const payload=JSON.stringify({colls:COLLS,sm:SM});
+  // Always write localStorage immediately (instant, offline-safe)
+  try{localStorage.setItem(LS_KEY,payload);}catch(e){}
+  // Then sync to Supabase
+  try{
+    const res=await fetch(`${SUPA_URL}/rest/v1/tes_data`,{
+      method:'POST',
+      headers:{...SUPA_HDR,'Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({key:SAVE_KEY,value:payload})
+    });
+    if(!res.ok)throw new Error(await res.text());
+    showFlash('✓ Saved to cloud');
+  }catch(e){
+    console.warn('Cloud save failed, local only:',e);
+    showFlash('⚠ Saved locally — cloud sync failed',false);
+  }
+}
+
+// ── LOAD: cloud first, localStorage fallback ──
+async function loadData(){
+  // Show loading state
+  showFlash('⏳ Loading data…',true);
+  try{
+    const res=await fetch(`${SUPA_URL}/rest/v1/tes_data?key=eq.${SAVE_KEY}&select=value`,{headers:SUPA_HDR});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const rows=await res.json();
+    if(rows&&rows.length>0&&rows[0].value){
+      applyData(JSON.parse(rows[0].value));
+      showFlash('✓ Loaded from cloud');
+      return;
+    }
+    // No cloud record yet — try localStorage then use defaults
+    throw new Error('No cloud record');
+  }catch(e){
+    console.warn('Cloud load failed:',e.message);
+    try{
+      const raw=localStorage.getItem(LS_KEY);
+      if(raw){applyData(JSON.parse(raw));showFlash('⚠ Loaded from local storage',false);return;}
+    }catch(le){}
+    // Fresh start with defaults
+    COLLS=deepClone(DEFAULT_COLLS);SM=deepClone(DEFAULT_SM);
+    showFlash('✓ Started with default data');
+  }
+}
+
+function applyData(d){
+  COLLS=migrateTiers(d.colls||deepClone(DEFAULT_COLLS));
+  SM=d.sm||deepClone(DEFAULT_SM);
+}
+
+
+// ═══════════════════════════ SHARED MARKETING HELPERS ═══════════════════════════
+// Revenue of a collection (used for revenue-weighted splits)
+function collRevenue(collId){
+  const col=COLLS.find(c=>c.id===collId);
+  if(!col)return 0;
+  return col.products.reduce((s,p)=>{
+    const{rev}=tiersRev(p);return s+rev;
+  },0);
+}
+
+// How much of a locked tranche goes to a specific collection
+function trancheShare(tranche,collId){
+  const ac=tranche.activeColls||[];
+  if(!ac.includes(collId))return 0;
+  const amt=tranche.amount||0;
+  if(ac.length===0)return 0;
+  const revMap={};let totR=0;
+  ac.forEach(cid=>{const r=collRevenue(cid);revMap[cid]=r;totR+=r;});
+  if(totR<=0)return amt/ac.length;
+  return amt*((revMap[collId]||0)/totR);
+}
+
+// How much of the pending (unlocked) portion of a campaign goes to a collection
+function pendingShare(sm,collId){
+  const locked=(sm.tranches||[]).reduce((s,t)=>s+(t.amount||0),0);
+  const pending=Math.max(0,(sm.budget||0)-locked);
+  if(pending<=0)return 0;
+  const pc=sm.pendingColls||[];
+  if(!pc.includes(collId))return 0;
+  const revMap={};let totR=0;
+  pc.forEach(cid=>{const r=collRevenue(cid);revMap[cid]=r;totR+=r;});
+  if(totR<=0)return pending/pc.length;
+  return pending*((revMap[collId]||0)/totR);
+}
+
+// Total shared allocation for a collection across all campaigns
+function smAllocForColl(collId){
+  let total=0;
+  SM.forEach(sm=>{
+    (sm.tranches||[]).forEach(t=>{total+=trancheShare(t,collId);});
+    total+=pendingShare(sm,collId);
+  });
+  return total;
+}
+
+// ═══════════════════════════ CALC ENGINE ═══════════════════════════
+// Migrate old tier data that lacks sold field — default sold = qty (all planned = sold)
+function migrateTiers(colls){
+  colls.forEach(col=>col.products.forEach(p=>{
+    (p.tiers||[]).forEach(t=>{if(t.sold===undefined)t.sold=t.qty;});
+    if(p.giveaway===undefined)p.giveaway=0;
+  }));
+  return colls;
+}
+
+// tiersRev uses ACTUAL sold units for revenue; planned qty is just the target
+function tiersRev(p){
+  let sq=0,rev=0;
+  (p.tiers||[]).forEach(t=>{
+    const sold=+(t.sold!=null?t.sold:t.qty)||0; // actual sold, fallback to planned
+    const pr=p.price*(1-(+(t.disc)||0));
+    sq+=sold; rev+=pr*sold;
+  });
+  return{sq,rev};
+}
+// planned total from tiers (target)
+function tiersPlanned(p){return (p.tiers||[]).reduce((s,t)=>s+(+(t.qty)||0),0);}
+
+// tiersRev but assuming ALL planned qty is sold
+function tiersRevIfAllSold(p){
+  let sq=0,rev=0;
+  (p.tiers||[]).forEach(t=>{
+    const planned=+(t.qty)||0;
+    const pr=p.price*(1-(+(t.disc)||0));
+    sq+=planned; rev+=pr*planned;
+  });
+  return{sq,rev};
+}
+// calcProd variant where sold = planned qty (all sold scenario)
+function calcProdIfAllSold(p,oh,totCOG){
+  const gv=p.giveaway||0;
+  const{sq:sellQty,rev}=tiersRevIfAllSold(p);
+  const cog=(p.fabric*p.meters*p.qty)+(p.mfg*p.qty)+((p.zipper||0)*p.qty)+(p.sample||0)+(TR*p.qty)+(LB*p.qty);
+  const cogPU=cog/(p.qty||1);
+  const ohPU=totCOG>0?(oh/totCOG)*cogPU:0;
+  const totPnl=rev-cog-(ohPU*p.qty);
+  const marginSale=rev>0?totPnl/rev:0;
+  return{totPnl,rev,marginSale,sellQty};
+}
+function calcProd(p,oh,totCOG){
+  const gv=p.giveaway||0;
+  const{sq:sellQty,rev}=tiersRev(p);
+  const cog=(p.fabric*p.meters*p.qty)+(p.mfg*p.qty)+((p.zipper||0)*p.qty)+(p.sample||0)+(TR*p.qty)+(LB*p.qty);
+  const cogPU=cog/(p.qty||1);
+  const ohPU=totCOG>0?(oh/totCOG)*cogPU:0;
+  const costPU=cogPU+ohPU;
+  const avgSP=sellQty>0?rev/sellQty:p.price;
+  const totPnl=rev-cog-(ohPU*p.qty);
+  const marginSale=rev>0?totPnl/rev:0;
+  const costPerSold=sellQty>0?(cog+ohPU*p.qty)/sellQty:costPU;
+  return{cog,cogPU,ohPU,costPU,costPerSold,avgSP,totPnl,rev,gv,sellQty,marginSale,bk:costPerSold,status:totPnl>=0?'PROFIT':'LOSS'};
+}
+function calcColl(col){
+  const directOH=Object.values(col.oh).reduce((a,b)=>a+(b||0),0);
+  const sharedOH=smAllocForColl(col.id);
+  const dOH=directOH+sharedOH;
+  let totCOG=0;
+  col.products.forEach(p=>{if(!p.name)return;totCOG+=(p.fabric*p.meters*p.qty)+(p.mfg*p.qty)+((p.zipper||0)*p.qty)+(p.sample||0)+(TR*p.qty)+(LB*p.qty);});
+  const calcs=col.products.map(p=>p.name?calcProd(p,dOH,totCOG):null);
+  const calcsAll=col.products.map(p=>p.name?calcProdIfAllSold(p,dOH,totCOG):null);
+  const totRev=calcs.reduce((a,c)=>a+(c?c.rev:0),0);
+  const totPnL=calcs.reduce((a,c)=>a+(c?c.totPnl:0),0);
+  const totRevAll=calcsAll.reduce((a,c)=>a+(c?c.rev:0),0);
+  const totPnLAll=calcsAll.reduce((a,c)=>a+(c?c.totPnl:0),0);
+  const totUnits=col.products.reduce((a,p)=>a+(p.qty||0),0);
+  return{directOH,sharedOH,dOH,totCOG,totRev,totPnL,totRevAll,totPnLAll,totUnits,
+    margin:totRev>0?totPnL/totRev:0,marginAll:totRevAll>0?totPnLAll/totRevAll:0,calcs,calcsAll};
+}
+function getAll(){return COLLS.map(col=>({col,m:calcColl(col)}));}
+
+// ═══════════════════════════ FORMAT ═══════════════════════════
+const f=n=>isNaN(n)?'—':Math.round(n).toLocaleString('en');
+const fK=n=>n>=1000?(n/1000).toFixed(1)+'K':Math.round(n).toString();
+const fp=n=>(n*100).toFixed(1)+'%';
+function mb(m){return m>=.35?'bg-good':m>=.15?'bg-warn':'bg-danger';}
+function mc(m){return m>=.35?'var(--good)':m>=.15?'var(--warn)':'var(--danger)';}
+
+// ═══════════════════════════ NAV ═══════════════════════════
+const PT={exec:'Executive Dashboard',products:'Product Profit Engine',collections:'Collection Intelligence',inventory:'Inventory Intelligence',marketing:'Marketing & ROAS',planning:'Production Planning',simulator:'Scenario Simulator',ai:'AI Decision Engine',leaks:'Profit Leak Detector',shared:'Shared Campaigns',editor:'Data Editor'};
+function nav(p){
+  document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.querySelector(`[onclick="nav('${p}')"]`).classList.add('active');
+  document.getElementById('ptitle').textContent=PT[p];
+  // Only close if not pinned
+  if(!document.body.classList.contains('pinned')) closeSidebar();
+}
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sidebar-overlay');
+  const isOpen=sb.classList.contains('open');
+  if(isOpen){closeSidebar();}
+  else{sb.classList.add('open');ov.style.display='block';requestAnimationFrame(()=>ov.style.opacity='1');}
+}
+function closeSidebar(){
+  if(document.body.classList.contains('pinned'))return; // pinned — never close
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sidebar-overlay');
+  sb.classList.remove('open');
+  ov.style.opacity='0';
+  setTimeout(()=>ov.style.display='none',250);
+}
+function togglePin(){
+  const pinned=document.body.classList.toggle('pinned');
+  localStorage.setItem('tes_sidebar_pinned', pinned?'1':'0');
+  // If pinning, also close the overlay immediately
+  if(pinned){
+    const ov=document.getElementById('sidebar-overlay');
+    ov.style.opacity='0';
+    setTimeout(()=>ov.style.display='none',250);
+  }
+}
+function applyPinState(){
+  const pinned=localStorage.getItem('tes_sidebar_pinned')==='1';
+  if(pinned) document.body.classList.add('pinned');
+}
+function toggleDark(el){
+  document.documentElement.setAttribute('data-theme',el.checked?'dark':'light');
+  setTimeout(()=>{destroyC();buildC();initSim();calcPlan();},120);
+}
+
+// ═══════════════════════════ CHARTS ═══════════════════════════
+const CR={};
+function destroyC(){Object.values(CR).forEach(c=>{try{c.destroy();}catch(e){}});Object.keys(CR).forEach(k=>delete CR[k]);}
+function gc(){const dark=document.documentElement.getAttribute('data-theme')==='dark';return{g:dark?'rgba(255,255,255,.05)':'rgba(0,0,0,.05)',t:dark?'#8a7060':'#7a6a5e'};}
+
+function buildC(){
+  const all=getAll(),c=gc();
+  const hasGap=all.some(a=>Math.abs(a.m.totRev-a.m.totRevAll)>1);
+  const ctx1=document.getElementById('c-rp');
+  if(ctx1){
+    const datasets=[
+      {label:'Revenue (actual)',data:all.map(a=>Math.round(a.m.totRev)),backgroundColor:'rgba(139,26,26,.55)',borderRadius:5},
+      {label:'Net Profit (actual)',data:all.map(a=>Math.round(a.m.totPnL)),backgroundColor:'rgba(26,92,58,.55)',borderRadius:5},
+    ];
+    if(hasGap){
+      datasets.push({label:'Revenue (all sold)',data:all.map(a=>Math.round(a.m.totRevAll)),backgroundColor:'rgba(139,26,26,.18)',borderRadius:5,borderWidth:1.5,borderColor:'rgba(139,26,26,.5)',borderDash:[4,3]});
+      datasets.push({label:'Profit (all sold)',data:all.map(a=>Math.round(a.m.totPnLAll)),backgroundColor:'rgba(26,92,58,.18)',borderRadius:5,borderWidth:1.5,borderColor:'rgba(26,92,58,.5)'});
+    }
+    CR.rp=new Chart(ctx1,{type:'bar',data:{labels:COLLS.map(c=>c.name),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:c.t,font:{family:'DM Sans',size:11}}}},scales:{x:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Sans',size:11}}},y:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Mono',size:10},callback:v=>fK(v)+' EGP'}}}}});
+  }
+  const ctx2=document.getElementById('c-mp');
+  if(ctx2){CR.mp=new Chart(ctx2,{type:'doughnut',data:{labels:COLLS.map(c=>c.name),datasets:[{data:all.map(a=>Math.max(0,+(a.m.margin*100).toFixed(1))),backgroundColor:COLLS.map(c=>c.color+'cc'),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:c.t,font:{family:'DM Sans',size:11},padding:9}},tooltip:{callbacks:{label:ctx=>ctx.label+': '+ctx.raw.toFixed(1)+'% margin'}}}}});}
+  const ctx3=document.getElementById('c-pp');
+  if(ctx3){
+    const ap=all.flatMap(a=>a.m.calcs.map((c,i)=>c?{name:a.col.products[i].name,pnl:c.totPnl,pnlAll:a.m.calcsAll[i]?.totPnl??c.totPnl,col:a.col}:null).filter(Boolean));
+    const datasets3=[
+      {label:'Net Profit (actual)',data:ap.map(p=>Math.round(p.pnl)),backgroundColor:ap.map(p=>p.pnl>=0?'rgba(26,92,58,.65)':'rgba(139,26,26,.65)'),borderRadius:4},
+    ];
+    if(hasGap){
+      datasets3.push({label:'Profit (all sold)',data:ap.map(p=>Math.round(p.pnlAll)),backgroundColor:ap.map(p=>p.pnlAll>=0?'rgba(46,95,163,.35)':'rgba(139,26,26,.25)'),borderRadius:4});
+    }
+    CR.pp=new Chart(ctx3,{type:'bar',data:{labels:ap.map(p=>p.name),datasets:datasets3},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:hasGap,labels:{color:c.t,font:{family:'DM Sans',size:10}}}},scales:{x:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Sans',size:10},maxRotation:35}},y:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Mono',size:10},callback:v=>fK(v)}}}}});
+  }
+}
+
+// ═══════════════════════════ KPI ═══════════════════════════
+function buildKPI(){
+  const all=getAll();
+  const tR=all.reduce((s,a)=>s+a.m.totRev,0),tP=all.reduce((s,a)=>s+a.m.totPnL,0);
+  const tRA=all.reduce((s,a)=>s+a.m.totRevAll,0),tPA=all.reduce((s,a)=>s+a.m.totPnLAll,0);
+  const tOH=all.reduce((s,a)=>s+a.m.dOH,0),tCOG=all.reduce((s,a)=>s+a.m.totCOG,0);
+  const tU=all.reduce((s,a)=>s+a.m.totUnits,0),margin=tR>0?tP/tR:0,marginA=tRA>0?tPA/tRA:0,roas=tOH>0?tR/tOH:0;
+  const hasGap=Math.abs(tR-tRA)>1; // any unsold stock
+  const apf=all.flatMap(a=>a.m.calcs.map((c,i)=>c?{...c,name:a.col.products[i].name,col:a.col}:null).filter(Boolean));
+  const best=apf.reduce((a,b)=>a.totPnl>b.totPnl?a:b);
+  const worst=apf.reduce((a,b)=>a.marginSale<b.marginSale?a:b);
+
+  // Dual-value helper: renders actual + if-all-sold sub-line when there's a gap
+  const dualSub=(actual,target,fmt)=>hasGap
+    ?`<div style="margin-top:4px;font-size:10px;color:var(--sage);font-family:'DM Mono',monospace">▲ ${fmt(target)} if all sold</div>`
+    :'';
+
+  document.getElementById('kpi-grid').innerHTML=[
+    {l:'Total Revenue',v:'EGP '+fK(tR),s:f(tR)+' EGP',bd:null,extra:dualSub(tR,tRA,v=>'EGP '+fK(v))},
+    {l:'Net Profit',v:'EGP '+fK(tP),s:fp(margin)+' net margin',bd:fp(margin),bc:mb(margin),extra:dualSub(tP,tPA,v=>'EGP '+fK(v)+' · '+fp(marginA))},
+    {l:'Total Overheads',v:'EGP '+fK(tOH),s:'Ads + marketing + shoots',bd:null,extra:''},
+    {l:'ROAS',v:roas.toFixed(1)+'x',s:'Revenue per EGP spent',bd:roas>=3?'Healthy':roas>=2?'Marginal':'Low',bc:roas>=3?'bg-good':roas>=2?'bg-warn':'bg-danger',extra:''},
+    {l:'Total COG',v:'EGP '+fK(tCOG),s:'All production costs',bd:null,extra:''},
+    {l:'Total Units',v:tU,s:`${COLLS.length} collections · ${all.reduce((s,a)=>s+a.col.products.filter(p=>p.name).length,0)} SKUs`,bd:null,extra:''},
+    {l:'Top Performer',v:best.name,s:'EGP '+f(best.totPnl)+' profit',bd:fp(best.marginSale),bc:'bg-good',extra:''},
+    {l:'Needs Review',v:worst.name,s:worst.col.name,bd:fp(worst.marginSale)+' margin',bc:mb(worst.marginSale),extra:''},
+  ].map(k=>`<div class="kc"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks">${k.s}</div>${k.bd?`<span class="kb ${k.bc}">${k.bd}</span>`:''}${k.extra||''}</div>`).join('');
+
+  document.getElementById('top-card').innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px"><span style="font-size:18px">🏆</span><div style="font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--good);font-weight:600">Top Performer</div></div><div class="fd" style="font-size:17px;margin-bottom:3px">${best.name}</div><div style="font-size:11px;color:var(--char);opacity:.6;margin-bottom:12px">${best.col.name}</div><div style="display:flex;gap:20px"><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Net Profit</div><div class="fm" style="font-size:14px;font-weight:500;color:var(--good)">EGP ${f(best.totPnl)}</div></div><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Margin</div><div class="fm" style="font-size:14px;font-weight:500;color:var(--good)">${fp(best.marginSale)}</div></div><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Revenue</div><div class="fm" style="font-size:14px;font-weight:500">EGP ${fK(best.rev)}</div></div></div>`;
+  document.getElementById('worst-card').innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px"><span style="font-size:18px">⚠️</span><div style="font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--warn);font-weight:600">Needs Attention</div></div><div class="fd" style="font-size:17px;margin-bottom:3px">${worst.name}</div><div style="font-size:11px;color:var(--char);opacity:.6;margin-bottom:12px">${worst.col.name}</div><div style="display:flex;gap:20px"><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Net Profit</div><div class="fm" style="font-size:14px;font-weight:500;color:${worst.totPnl>=0?'var(--good)':'var(--danger)'}">EGP ${f(worst.totPnl)}</div></div><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Margin</div><div class="fm" style="font-size:14px;font-weight:500;color:${mc(worst.marginSale)}">${fp(worst.marginSale)}</div></div><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Revenue</div><div class="fm" style="font-size:14px;font-weight:500">EGP ${fK(worst.rev)}</div></div></div>`;
+}
+
+// ═══════════════════════════ PRODUCTS ═══════════════════════════
+function buildProducts(){
+  const all=getAll();
+  document.getElementById('prod-tabs').innerHTML=COLLS.map((c,i)=>`<div class="tab ${i===0?'active':''}" onclick="showPT('${c.id}',this)">${c.name}</div>`).join('');
+  document.getElementById('prod-wrap').innerHTML=all.map(a=>{
+    // figure out if any product in this collection has unsold stock
+    const collHasGap=a.col.products.some((p,i)=>{
+      const c=a.m.calcs[i];const ca=a.m.calcsAll[i];
+      return c&&ca&&Math.abs(c.rev-ca.rev)>1;
+    });
+    const prods=a.col.products.filter(p=>p.name);
+    // map calcs aligned to filtered products
+    const filteredCalcs=prods.map(p=>{
+      const pi=a.col.products.indexOf(p);
+      return{c:a.m.calcs[pi],ca:a.m.calcsAll[pi]};
+    });
+    return`
+    <div id="pt-${a.col.id}" class="card" style="overflow:hidden;${a.col.id!=='drop1'?'display:none':''}">
+      <div style="padding:11px 17px;border-bottom:1px solid var(--mist);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span class="cpill ${a.col.pill}">${a.col.name}</span>
+        <span style="font-size:10.5px;color:var(--char);opacity:.5">OH: EGP ${f(a.m.dOH)} — ads ${f(a.col.oh.ads)} · mktg ${f(a.col.oh.marketing)} · shoot ${f(a.col.oh.photoshoot)}</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="dt">
+          <thead>
+            <tr>
+              <th>Product</th><th>Qty</th><th>COG Total</th><th>COG/Unit</th><th>OH/Unit</th><th>Total Cost/Unit</th><th>Pricing Tiers</th><th>Avg Sell</th>
+              <th>Revenue</th><th>Net P&L</th><th>Margin</th>
+              ${collHasGap?`<th style="color:var(--sage);border-left:2px solid var(--mist)">Rev (all sold)</th><th style="color:var(--sage)">P&L (all sold)</th><th style="color:var(--sage)">Margin (all sold)</th>`:''}
+            </tr>
+          </thead>
+          <tbody>${filteredCalcs.map(({c,ca},i)=>{
+            if(!c)return'';
+            const p=prods[i];
+            const ts=(p.tiers||[]).map(t=>`${t.qty}u@${t.disc===0?'full':'-'+(t.disc*100).toFixed(0)+'% ('+f(p.price*(1-t.disc))+')'}`).join(' · ');
+            const hasGap2=ca&&Math.abs(c.rev-ca.rev)>1;
+            return`<tr>
+              <td><div style="font-weight:500">${p.name}</div><div style="font-size:10px;color:var(--gold);margin-top:1px">Price: EGP ${f(p.price)}</div></td>
+              <td class="num">${p.qty}</td>
+              <td class="num">EGP ${f(c.cog)}</td>
+              <td class="num">EGP ${f(c.cogPU)}</td>
+              <td class="num" style="color:var(--warn)">EGP ${f(c.ohPU)}</td>
+              <td class="num">EGP ${f(c.costPU)}</td>
+              <td style="font-size:11px;max-width:190px">${ts}</td>
+              <td class="num">EGP ${f(c.avgSP)}</td>
+              <td class="num">EGP ${fK(c.rev)}</td>
+              <td class="num" style="color:${c.totPnl>=0?'var(--good)':'var(--danger)'};font-weight:600">EGP ${f(c.totPnl)}</td>
+              <td><span class="kb ${mb(c.marginSale)}">${fp(c.marginSale)}</span></td>
+              ${collHasGap?`
+              <td class="num" style="color:var(--sage);border-left:2px solid var(--mist)">${hasGap2?'EGP '+fK(ca.rev):'—'}</td>
+              <td class="num" style="color:${ca&&ca.totPnl>=0?'var(--sage)':'var(--danger)'};font-weight:600">${hasGap2?'EGP '+f(ca.totPnl):'—'}</td>
+              <td>${hasGap2?`<span class="kb" style="background:rgba(46,95,163,.12);color:var(--sage)">${fp(ca.marginSale)}</span>`:'—'}</td>`:''}
+            </tr>`;
+          }).join('')}</tbody>
+          <tfoot><tr style="background:var(--mist)">
+            <td colspan="8" style="font-weight:600;padding:9px 13px;font-size:12px">TOTAL</td>
+            <td class="num" style="font-weight:700">EGP ${fK(a.m.totRev)}</td>
+            <td class="num" style="font-weight:700;color:${a.m.totPnL>=0?'var(--good)':'var(--danger)'}">EGP ${f(a.m.totPnL)}</td>
+            <td><span class="kb ${mb(a.m.margin)}">${fp(a.m.margin)}</span></td>
+            ${collHasGap?`
+            <td class="num" style="font-weight:700;color:var(--sage);border-left:2px solid rgba(0,0,0,.08)">EGP ${fK(a.m.totRevAll)}</td>
+            <td class="num" style="font-weight:700;color:${a.m.totPnLAll>=0?'var(--sage)':'var(--danger)'}">EGP ${f(a.m.totPnLAll)}</td>
+            <td><span class="kb" style="background:rgba(46,95,163,.15);color:var(--sage)">${fp(a.m.marginAll)}</span></td>`:''}
+          </tr></tfoot>
+        </table>
+      </div>
+      ${collHasGap?`<div style="padding:8px 14px;font-size:10.5px;color:var(--sage);background:rgba(46,95,163,.04);border-top:1px solid rgba(46,95,163,.12)">
+        ◈ Blue columns show what revenue, profit and margin would be <strong>if every planned unit sold at its tier price</strong> — use this to gauge unsold stock impact.
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+function showPT(id,el){document.querySelectorAll('[id^="pt-"]').forEach(e=>e.style.display='none');document.querySelectorAll('#prod-tabs .tab').forEach(t=>t.classList.remove('active'));document.getElementById('pt-'+id).style.display='block';el.classList.add('active');}
+
+// ═══════════════════════════ COLLECTIONS ═══════════════════════════
+function buildColls(){
+  const all=getAll();
+  document.getElementById('coll-wrap').innerHTML=all.map(a=>{
+    const ps=a.col.products.filter(p=>p.name);
+    const cs=a.m.calcs.filter(Boolean);
+    const cas=a.m.calcsAll.filter(Boolean);
+    const hasGap=Math.abs(a.m.totRev-a.m.totRevAll)>1;
+    const sorted=[...cs].map((c,i)=>({...c,name:ps[i]?.name})).sort((x,y)=>y.totPnl-x.totPnl);
+    const best=sorted[0],worst=sorted[sorted.length-1];
+    return`<div class="card" style="margin-bottom:16px;overflow:hidden">
+      <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:1px solid var(--mist);background:${a.col.color}0d">
+        <div style="display:flex;align-items:center;gap:10px"><span style="width:9px;height:9px;border-radius:50%;background:${a.col.color};display:inline-block"></span><div class="fd" style="font-size:18px">${a.col.name}</div></div>
+        <div style="display:flex;gap:20px;text-align:right;flex-wrap:wrap;align-items:flex-start">
+          <div>
+            <div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Revenue</div>
+            <div class="fm" style="font-size:13.5px">EGP ${fK(a.m.totRev)}</div>
+            ${hasGap?`<div style="font-size:10px;color:var(--sage);margin-top:1px">▲ EGP ${fK(a.m.totRevAll)} full</div>`:''}
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Net P&L</div>
+            <div class="fm" style="font-size:13.5px;color:${a.m.totPnL>=0?'var(--good)':'var(--danger)'}">EGP ${fK(a.m.totPnL)}</div>
+            ${hasGap?`<div style="font-size:10px;color:var(--sage);margin-top:1px">▲ EGP ${fK(a.m.totPnLAll)} full</div>`:''}
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Margin</div>
+            <span class="kb ${mb(a.m.margin)}">${fp(a.m.margin)}</span>
+            ${hasGap?`<div style="margin-top:3px"><span class="kb" style="background:rgba(46,95,163,.12);color:var(--sage)">${fp(a.m.marginAll)} full</span></div>`:''}
+          </div>
+          <div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Overheads</div><div class="fm" style="font-size:13.5px;color:var(--warn)">EGP ${fK(a.m.dOH)}</div></div>
+        </div>
+      </div>
+      <div style="padding:10px 20px;border-bottom:1px solid var(--mist);display:flex;gap:7px;flex-wrap:wrap;align-items:center;background:rgba(139,26,26,.02)">
+        <span style="font-size:10.5px;color:var(--char);opacity:.45">OH breakdown:</span>
+        ${Object.entries(a.col.oh).filter(([k,v])=>v>0).map(([k,v])=>`<span style="font-size:10.5px;background:var(--mist);padding:2px 7px;border-radius:4px">${k}: EGP ${f(v)}</span>`).join('')}
+        ${best?`<span style="margin-left:auto;font-size:10.5px;color:var(--good)">🏆 ${best.name} (EGP ${f(best.totPnl)})</span>`:''}
+        ${worst?`<span style="font-size:10.5px;color:var(--warn)">⚑ ${worst.name} (${fp(worst.marginSale)} margin)</span>`:''}
+      </div>
+      <div style="padding:14px 20px">
+        ${cs.map((c,i)=>{
+          const ca=cas[i];
+          const share=a.m.totRev>0?c.rev/a.m.totRev:0;
+          const prodHasGap=ca&&Math.abs(c.rev-ca.rev)>1;
+          return`<div style="margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:2px">
+              <div style="width:145px;font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ps[i]?.name}</div>
+              <div style="flex:1"><div class="pb"><div class="pf ${mb(c.marginSale).replace('bg-','p')}" style="width:${Math.max(2,Math.min(100,share*100))}%"></div></div></div>
+              <div class="fm" style="font-size:10px;width:42px;text-align:right;color:var(--char);opacity:.55">${(share*100).toFixed(0)}%</div>
+              <div class="fm" style="font-size:11px;width:105px;text-align:right;color:${c.totPnl>=0?'var(--good)':'var(--danger)'}">EGP ${f(c.totPnl)}</div>
+            </div>
+            ${prodHasGap?`<div style="display:flex;justify-content:flex-end;gap:5px;align-items:center">
+              <span style="font-size:9.5px;color:var(--sage);opacity:.8">if all sold:</span>
+              <span class="fm" style="font-size:10.5px;color:var(--sage);font-weight:600">EGP ${f(ca.totPnl)}</span>
+              <span class="kb" style="background:rgba(46,95,163,.10);color:var(--sage);font-size:9px">${fp(ca.marginSale)}</span>
+            </div>`:''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════ INVENTORY ═══════════════════════════
+// ─── Inventory edit helpers ───────────────────────────────────────────────────
+function updateSold(collId,pi,ti,val){
+  const col=COLLS.find(c=>c.id===collId);if(!col||!col.products[pi])return;
+  const t=col.products[pi].tiers[ti];if(!t)return;
+  const v=Math.max(0,Math.min(+(val)||0, +(t.qty)||0)); // clamp 0..planned qty
+  t.sold=v;
+  saveData(); refreshAll();
+}
+function updateGiveawayInv(collId,pi,val){
+  const col=COLLS.find(c=>c.id===collId);if(!col||!col.products[pi])return;
+  col.products[pi].giveaway=Math.max(0,+(val)||0);
+  saveData(); refreshAll();
+}
+
+// ─── Build Inventory page ─────────────────────────────────────────────────────
+function buildInv(){
+  const all=getAll();
+  let rows='';
+  all.forEach(a=>{
+    a.col.products.filter(p=>p.name).forEach((p,pi2)=>{
+      // pi2 is index in filtered list — need real index in full products array
+      const pi=a.col.products.indexOf(p);
+      const c=a.m.calcs[pi];if(!c)return;
+      const planned=tiersPlanned(p);
+      const actualSold=c.sellQty;
+      const gv=p.giveaway||0;
+      const rem=Math.max(0,p.qty-actualSold-gv);
+      const st=p.qty>0?(actualSold/p.qty)*100:0;
+      let rk='On Track',rc='bg-neu';
+      if(st<50&&rem>5){rk='Dead Stock Risk';rc='bg-danger';}
+      else if(st<70){rk='Slow Moving';rc='bg-warn';}
+      else if(st>=85){rk='Hot Seller';rc='bg-good';}
+
+      // Tier rows — each editable
+      const tierCells=(p.tiers||[]).map((t,ti)=>{
+        const s=+(t.sold!=null?t.sold:t.qty)||0;
+        const maxQ=+(t.qty)||0;
+        const pct=maxQ>0?Math.min(100,(s/maxQ)*100):0;
+        return`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <span style="font-size:10px;color:var(--char);opacity:.5;width:52px;flex-shrink:0">${t.disc===0?'Full':'-'+(t.disc*100).toFixed(0)+'%'} <span style="opacity:.6">(${maxQ}u)</span></span>
+          <input type="number" min="0" max="${maxQ}"
+            style="width:52px;background:var(--paper);border:1px solid var(--mist);border-radius:5px;padding:3px 6px;font-size:12px;font-family:'DM Mono',monospace;color:var(--ink);outline:none;text-align:center"
+            value="${s}"
+            onblur="updateSold('${a.col.id}',${pi},${ti},this.value)"
+            onkeydown="if(event.key==='Enter')this.blur()"
+            onfocus="this.select()"
+            title="Actual sold out of ${maxQ} planned"/>
+          <span style="font-size:10px;color:var(--char);opacity:.4">/${maxQ}</span>
+          <div style="flex:1;max-width:55px"><div class="pb"><div class="pf ${pct>=100?'pg':pct>=50?'pa':'pr'}" style="width:${pct}%"></div></div></div>
+          <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--char);opacity:.55;width:28px">${pct.toFixed(0)}%</span>
+        </div>`;
+      }).join('');
+
+      rows+=`<tr>
+        <td style="min-width:140px">
+          <div style="font-weight:500;font-size:13px">${p.name}</div>
+          <span class="cpill ${a.col.pill}" style="margin-top:3px;display:inline-block">${a.col.name}</span>
+        </td>
+        <td class="num" style="font-weight:600">${p.qty}</td>
+        <td class="num" style="color:var(--good);font-weight:600">${actualSold}</td>
+        <td style="min-width:200px">${tierCells}</td>
+        <td>
+          <input type="number" min="0" max="${p.qty}"
+            style="width:56px;background:var(--paper);border:1px solid var(--mist);border-radius:5px;padding:3px 6px;font-size:12px;font-family:'DM Mono',monospace;color:var(--blush);outline:none;text-align:center"
+            value="${gv}"
+            onblur="updateGiveawayInv('${a.col.id}',${pi},this.value)"
+            onkeydown="if(event.key==='Enter')this.blur()"
+            onfocus="this.select()"
+            title="Giveaway units"/>
+        </td>
+        <td class="num" style="color:${rem>5?'var(--warn)':'var(--good)'};font-weight:${rem>0?600:400}">${rem}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="flex:1;max-width:70px"><div class="pb"><div class="pf ${st>=70?'pg':st>=40?'pa':'pr'}" style="width:${st}%"></div></div></div>
+            <span class="fm" style="font-size:11px;font-weight:600">${st.toFixed(0)}%</span>
+          </div>
+        </td>
+        <td><span class="kb ${rc}">${rk}</span></td>
+        <td class="num" style="color:${c.totPnl>=0?'var(--good)':'var(--danger)'};font-weight:600">EGP ${f(c.totPnl)}</td>
+      </tr>`;
+    });
+  });
+
+  const tU=all.reduce((s,a)=>s+a.m.totUnits,0);
+  const tS=all.flatMap(a=>a.m.calcs.filter(Boolean).map(c=>c.sellQty)).reduce((s,v)=>s+v,0);
+  const tRem=all.flatMap(a=>a.col.products.filter(p=>p.name).map((p,i)=>{
+    const c=a.m.calcs[i];return c?Math.max(0,p.qty-c.sellQty-(p.giveaway||0)):0;
+  })).reduce((s,v)=>s+v,0);
+  const tGv=all.flatMap(a=>a.col.products).reduce((s,p)=>s+(p.giveaway||0),0);
+
+  document.getElementById('inv-wrap').innerHTML=`
+    <div style="background:rgba(26,92,58,.06);border:1px solid rgba(26,92,58,.18);border-radius:9px;padding:11px 15px;margin-bottom:16px;font-size:12px;color:var(--good)">
+      ✎ <strong>Inventory is editable.</strong> Type actual sold units per tier, then press Enter or click away. Giveaway units are also editable. All P&L recalculates instantly.
+    </div>
+    <div class="g3" style="margin-bottom:16px">
+      <div class="kc"><div class="kl">Total Produced</div><div class="kv">${tU}</div><div class="ks">All SKUs across ${COLLS.length} collections</div></div>
+      <div class="kc"><div class="kl">Actually Sold</div><div class="kv">${tS}</div><div class="ks">${tU>0?((tS/tU)*100).toFixed(1):'0'}% real sell-through</div></div>
+      <div class="kc"><div class="kl">Remaining Stock</div><div class="kv" style="color:${tRem>20?'var(--warn)':'var(--ink)'}">${tRem}</div><div class="ks">${tGv} given away</div></div>
+    </div>
+    <div class="card" style="overflow:hidden">
+      <div style="overflow-x:auto">
+        <table class="dt">
+          <thead><tr>
+            <th>Product</th>
+            <th>Produced</th>
+            <th>Total Sold</th>
+            <th>Sold per Tier <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.6">(editable)</span></th>
+            <th>Giveaway <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.6">(editable)</span></th>
+            <th>Remaining</th>
+            <th>Sell-Through</th>
+            <th>Status</th>
+            <th>Net P&L</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════ MARKETING ═══════════════════════════
+function buildMkt(){
+  const all=getAll();
+  const totSM=SM.reduce((s,sm)=>{const l=(sm.tranches||[]).reduce((ss,t)=>ss+(t.amount||0),0);return s+l+Math.max(0,(sm.budget||0)-l);},0);
+  const tOH=all.reduce((s,a)=>s+a.m.dOH,0),tR=all.reduce((s,a)=>s+a.m.totRev,0),tP=all.reduce((s,a)=>s+a.m.totPnL,0),roas=tOH>0?tR/tOH:0;
+  let rows='';
+  all.forEach(a=>{
+    const roas2=a.m.dOH>0?a.m.totRev/a.m.dOH:0;
+    const shOH=a.m.sharedOH;
+    rows+=`<tr>
+      <td><span class="cpill ${a.col.pill}">${a.col.name}</span></td>
+      <td class="num">EGP ${f(a.m.totRev)}</td>
+      <td class="num" style="color:var(--warn)">EGP ${f(a.col.oh.ads||0)}</td>
+      <td class="num" style="color:var(--warn)">EGP ${f(a.col.oh.marketing||0)}</td>
+      <td class="num" style="color:var(--warn)">EGP ${f(a.col.oh.photoshoot||0)}</td>
+      <td class="num" style="color:var(--sage)">${shOH>0?'EGP '+f(shOH):'—'}</td>
+      <td class="num" style="font-weight:600;color:var(--warn)">EGP ${f(a.m.dOH)}</td>
+      <td class="num">${(a.m.dOH/a.m.totRev*100).toFixed(1)}%</td>
+      <td class="num"><span style="font-weight:700;color:${roas2>=3?'var(--good)':roas2>=2?'var(--warn)':'var(--danger)'}">${roas2.toFixed(1)}x</span></td>
+      <td class="num" style="color:${a.m.totPnL>=0?'var(--good)':'var(--danger)'}">EGP ${f(a.m.totPnL)}</td>
+    </tr>`;
+  });
+  const smNote=totSM>0?`<div style="font-size:11px;color:var(--sage);margin-top:8px">⇄ EGP ${f(totSM)} from ${SM.length} shared campaign(s) distributed above — <span style="cursor:pointer;text-decoration:underline" onclick="nav('shared')">view campaigns</span></div>`:'';
+  document.getElementById('mkt-wrap').innerHTML=`
+    <div class="g3" style="margin-bottom:16px">
+      <div class="kc"><div class="kl">Total OH Spend</div><div class="kv">EGP ${fK(tOH)}</div><div class="ks">Direct + shared campaigns</div></div>
+      <div class="kc"><div class="kl">Blended ROAS</div><div class="kv">${roas.toFixed(1)}x</div><div class="ks">Revenue per EGP spent</div><span class="kb ${roas>=3?'bg-good':roas>=2?'bg-warn':'bg-danger'}">${roas>=3?'Healthy':roas>=2?'Marginal':'Needs Work'}</span></div>
+      <div class="kc"><div class="kl">Profit After All OH</div><div class="kv">EGP ${fK(tP)}</div><div class="ks">True bottom line</div><span class="kb ${mb(tR>0?tP/tR:0)}">${fp(tR>0?tP/tR:0)}</span></div>
+    </div>
+    <div class="card" style="overflow:hidden">
+      <div style="overflow-x:auto">
+        <table class="dt">
+          <thead><tr>
+            <th>Collection</th><th>Revenue</th><th>Ads (direct)</th>
+            <th>Marketing</th><th>Photoshoot</th>
+            <th style="color:var(--sage)">Shared Campaigns</th>
+            <th>Total OH</th><th>OH/Rev%</th><th>ROAS</th><th>Net P&L</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${smNote}
+      ${SM.length===0?`<div style="padding:10px 16px;font-size:11px;color:var(--char);opacity:.4">No shared campaigns configured — <span style="cursor:pointer;color:var(--sage);text-decoration:underline" onclick="nav('shared')">add one</span></div>`:''}
+    </div>`;
+}
+
+// ═══════════════════════════ PLANNING ═══════════════════════════
+function calcPlan(){
+  const fab=+document.getElementById('pf').value||0,met=+document.getElementById('pm').value||0;
+  const mfg=+document.getElementById('pmfg').value||0,zip=+document.getElementById('pz').value||0;
+  const sam=+document.getElementById('ps').value||0,qty=Math.max(1,+document.getElementById('pq').value||1);
+  const tmarg=(+document.getElementById('pmarg').value||40)/100,oh=+document.getElementById('poh').value||0;
+  const basePU=fab*met+mfg+zip+TR+LB,samPU=sam/qty,ohPU=oh/qty;
+  const cogPU=basePU+samPU,totPU=cogPU+ohPU;
+  const minP=totPU,optP=Math.ceil(totPU/(1-tmarg)/50)*50;
+  const bep=(sam+oh)/Math.max(1,optP-basePU);
+  const profAtQ=(optP-totPU)*qty,actM=optP>0?(optP-totPU)/optP:0;
+  document.getElementById('plan-out').innerHTML=`<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:12px">📊 Recommendations</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${[['COG/Unit','EGP '+f(cogPU)],['Total Cost/Unit','EGP '+f(totPU)],['Min Viable Price','EGP '+f(minP)],['Optimal Price','EGP '+f(optP)],['Break-Even Units',Math.ceil(bep)+' units'],['Suggested Qty',Math.max(20,Math.ceil(bep*1.5))+' units'],['Profit @ '+qty+' units','EGP '+f(profAtQ)],['Actual Margin',fp(actM)]].map(([l,v])=>`<div style="background:var(--paper);border-radius:7px;padding:8px 10px;border:1px solid var(--mist)"><div style="font-size:9px;text-transform:uppercase;letter-spacing:.09em;color:var(--gold);margin-bottom:2px">${l}</div><div class="fm" style="font-size:12.5px;font-weight:600">${v}</div></div>`).join('')}</div>`;
+  if(CR.bk)CR.bk.destroy();
+  const c=gc(),us=Array.from({length:qty+5},(_,i)=>i+1);
+  const ctx=document.getElementById('c-bk');
+  if(ctx)CR.bk=new Chart(ctx,{type:'line',data:{labels:us,datasets:[{label:'Revenue',data:us.map(u=>u*optP),borderColor:'rgba(26,92,58,.8)',fill:false,tension:.1,pointRadius:0,borderWidth:2},{label:'Total Cost',data:us.map(u=>(sam+oh)+basePU*u),borderColor:'rgba(139,26,26,.8)',fill:false,tension:.1,pointRadius:0,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:c.t,font:{family:'DM Sans',size:10}}}},scales:{x:{grid:{color:c.g},ticks:{color:c.t,font:{size:9}},title:{display:true,text:'Units',color:c.t,font:{size:9}}},y:{grid:{color:c.g},ticks:{color:c.t,font:{size:9},callback:v=>fK(v)}}}}});
+}
+
+// ═══════════════════════════ SIMULATOR ═══════════════════════════
+function initSim(){
+  document.getElementById('sim-sliders').innerHTML=[
+    {id:'sp',l:'Selling Price (EGP)',mn:500,mx:3000,st:50,v:1400,sf:''},
+    {id:'sc',l:'COG per Unit (EGP)',mn:100,mx:1000,st:10,v:450,sf:''},
+    {id:'sd',l:'Discount % (sale units)',mn:0,mx:50,st:5,v:20,sf:'%'},
+    {id:'so',l:'Overhead Alloc (EGP)',mn:0,mx:30000,st:500,v:10000,sf:''},
+    {id:'sq',l:'Production Qty',mn:5,mx:60,st:1,v:25,sf:''},
+    {id:'sg',l:'Giveaway Units',mn:0,mx:10,st:1,v:0,sf:''},
+    {id:'sf2',l:'% Sold at Full Price',mn:0,mx:100,st:5,v:50,sf:'%'},
+  ].map(s=>`<div style="margin-bottom:17px"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><label style="font-size:12px;font-weight:500">${s.l}</label><span class="fm" style="font-size:12.5px;color:var(--gold)" id="${s.id}-v">${s.v.toLocaleString()}${s.sf}</span></div><input type="range" id="${s.id}" min="${s.mn}" max="${s.mx}" step="${s.st}" value="${s.v}" oninput="runSim()"/><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--char);opacity:.3;margin-top:3px"><span>${s.mn}</span><span>${s.mx}</span></div></div>`).join('');
+  runSim();
+}
+function runSim(){
+  const price=+document.getElementById('sp').value,cog=+document.getElementById('sc').value;
+  const disc=(+document.getElementById('sd').value)/100,oh=+document.getElementById('so').value;
+  const qty=+document.getElementById('sq').value,give=+document.getElementById('sg').value;
+  const fullPct=(+document.getElementById('sf2').value)/100;
+  [['sp',''],['sc',''],['sd','%'],['so',''],['sq',''],['sg',''],['sf2','%']].forEach(([id,sf])=>{const el=document.getElementById(id+'-v');if(el)el.textContent=(+document.getElementById(id).value).toLocaleString()+sf;});
+  const sell=qty-give,fq=Math.round(sell*fullPct),dq=sell-fq;
+  const rev=fq*price+dq*price*(1-disc),tcog=cog*qty,np=rev-tcog-oh;
+  const margin=rev>0?np/rev:0,roas=oh>0?rev/oh:null,avgP=sell>0?rev/sell:0,gc2=cog*give;
+  const risk=margin<0?'LOSS':margin<.15?'HIGH RISK':margin<.30?'MODERATE':'HEALTHY';
+  const rc=margin<0?'var(--danger)':margin<.15?'var(--warn)':margin<.30?'var(--amber)':'var(--good)';
+  document.getElementById('sim-out').innerHTML=`<div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:12px">Live P&L</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px">${[['Revenue','EGP '+f(rev),''],['Net Profit','EGP '+f(np),np>=0?'color:var(--good)':'color:var(--danger)'],['Margin',fp(margin),'color:'+rc],['Avg Sell Price','EGP '+f(avgP),''],['Giveaway Loss','EGP '+f(gc2),'color:var(--danger)'],['ROAS',roas?roas.toFixed(1)+'x':'N/A',roas&&roas>=3?'color:var(--good)':'color:var(--warn)']].map(([l,v,s])=>`<div style="background:var(--paper);border-radius:6px;padding:7px 9px;border:1px solid var(--mist)"><div style="font-size:9px;text-transform:uppercase;letter-spacing:.09em;color:var(--gold)">${l}</div><div class="fm" style="font-size:12.5px;font-weight:500;margin-top:2px;${s}">${v}</div></div>`).join('')}</div><div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:7px;background:var(--paper);border:1px solid var(--mist)"><span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Risk</span><span style="font-size:13px;font-weight:700;color:${rc}">${risk}</span></div>`;
+  if(CR.sim)CR.sim.destroy();
+  const c=gc(),prices=[price*.6,price*.7,price*.8,price*.9,price,price*1.1,price*1.2].map(Math.round);
+  const profits=prices.map(p=>{const r=fq*p+dq*p*(1-disc);return r-tcog-oh;});
+  const ctx=document.getElementById('c-sim');
+  if(ctx)CR.sim=new Chart(ctx,{type:'bar',data:{labels:prices.map(p=>'EGP '+p),datasets:[{label:'Net Profit',data:profits.map(Math.round),backgroundColor:profits.map(v=>v>=0?'rgba(26,92,58,.6)':'rgba(139,26,26,.6)'),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:c.g},ticks:{color:c.t,font:{size:9}}},y:{grid:{color:c.g},ticks:{color:c.t,font:{size:9},callback:v=>fK(v)}}}}});
+}
+
+// ═══════════════════════════ AI ═══════════════════════════
+function buildAI(){
+  const all=getAll();
+  const ins=[];
+  all.forEach(a=>{
+    a.col.products.filter(p=>p.name).forEach((p,i)=>{
+      const c=a.m.calcs[i];if(!c)return;
+      if(c.marginSale>=.35)ins.push({t:'good',i:'📈',tl:'Scale Up Production',tx:`<strong>${p.name} (${a.col.name})</strong> delivers ${fp(c.marginSale)} margin on EGP ${f(c.rev)} revenue. A 25–30% larger batch next season would add ~EGP ${f(c.totPnl*.25)} profit with minimal extra overhead.`});
+      if(c.totPnl<0)ins.push({t:'danger',i:'🔴',tl:'Loss-Making SKU',tx:`<strong>${p.name} (${a.col.name})</strong> is losing EGP ${f(Math.abs(c.totPnl))}. Break-even avg sale price = EGP ${f(c.bk)} (current avg: EGP ${f(c.avgSP)}). Raise price or cut COG before next run.`});
+      if(c.marginSale>=0&&c.marginSale<.15&&c.totPnl>=0)ins.push({t:'warn',i:'⚠️',tl:'Margin Too Thin',tx:`<strong>${p.name}</strong> at ${fp(c.marginSale)} barely covers risk. OH per unit: EGP ${f(c.ohPU)}. Consider price increase of at least EGP ${f(c.bk*1.2-c.avgSP)} to reach 20% margin.`});
+    });
+    const cr=a.m.dOH>0?a.m.totRev/a.m.dOH:0;
+    if(cr<3&&a.m.dOH>0)ins.push({t:'warn',i:'📊',tl:'ROAS Below 3x',tx:`<strong>${a.col.name}</strong> ROAS is ${cr.toFixed(1)}x. Overheads (EGP ${f(a.m.dOH)}) vs revenue (EGP ${f(a.m.totRev)}). ${a.col.oh.photoshoot>0?'Photoshoot at EGP '+f(a.col.oh.photoshoot)+' is the biggest cost — batch it with another collection to halve the impact.':'Reduce ads allocation or grow revenue per unit.'}`});
+    if(cr>=4)ins.push({t:'good',i:'✨',tl:'Excellent ROAS',tx:`<strong>${a.col.name}</strong> at ${cr.toFixed(1)}x ROAS is highly efficient. Use this collection's overhead structure as a template for future drops.`});
+  });
+  const bc=all.reduce((a,b)=>a.m.margin>b.m.margin?a:b);
+  ins.push({t:'info',i:'🔁',tl:'Reorder Candidate',tx:`<strong>${bc.col.name}</strong> is your strongest collection at ${fp(bc.m.margin)} margin, EGP ${f(bc.m.totPnL)} profit. A follow-up drop with the same product mix is the lowest-risk growth move.`});
+  const ram=all.find(a=>a.col.id==='ramadan');
+  if(ram)ins.push({t:'info',i:'💡',tl:'Ramadan Cost Model Works',tx:`Ramadan 2026 had zero photoshoot budget and flat 10% discount tiers — lean OH of EGP ${f(ram.m.dOH)} against EGP ${f(ram.m.totRev)} revenue. This model is replicable for any fast-turn seasonal drop.`});
+  document.getElementById('ai-wrap').innerHTML=ins.slice(0,12).map(ins=>`<div class="ic2 i-${ins.t}"><div class="ii">${ins.i}</div><div class="it"><strong>${ins.tl}</strong>${ins.tx}</div></div>`).join('');
+}
+
+// ═══════════════════════════ LEAKS ═══════════════════════════
+function buildLeaks(){
+  const all=getAll();
+  const leaks=[];
+  let discLoss=0;
+  all.forEach(a=>a.col.products.filter(p=>p.name).forEach((p,i)=>{const c=a.m.calcs[i];if(!c)return;discLoss+=Math.max(0,c.sellQty*p.price-c.rev);}));
+  leaks.push({cat:'Discount Revenue Loss',icon:'🏷️',sev:discLoss>30000?'high':'medium',amt:discLoss,desc:`Discounting across all tiers reduced revenue by EGP ${f(discLoss)} vs. full-price sell-out.`,fix:'Improve demand forecasting — sell more units at full price before triggering markdowns.'});
+  const shoot=all.reduce((s,a)=>s+(a.col.oh.photoshoot||0),0);
+  if(shoot>0)leaks.push({cat:'Photoshoot Overhead',icon:'📸',sev:shoot>40000?'high':'medium',amt:shoot,desc:`EGP ${f(shoot)} across two collections (1st Drop: ${f(COLLS[0].oh.photoshoot)} + New Collection: ${f(COLLS[2].oh.photoshoot)}). Ramadan used zero.`,fix:'Batch multiple collections in one shoot day. Could halve this to ~EGP '+f(shoot/2)+'.'});
+  const mktg=all.reduce((s,a)=>s+(a.col.oh.marketing||0),0);
+  leaks.push({cat:'Marketing Spend',icon:'📡',sev:'medium',amt:mktg,desc:`EGP ${f(mktg)} in marketing budget across all collections. Track which channels drove actual conversions.`,fix:'Cut channels with <2x ROAS. Shift budget to performance-based spend.'});
+  const lossPs=all.flatMap(a=>a.col.products.filter(p=>p.name).map((p,i)=>({p,c:a.m.calcs[i],col:a.col})).filter(x=>x.c&&x.c.totPnl<0));
+  if(lossPs.length>0){const lt=lossPs.reduce((s,x)=>s+Math.abs(x.c.totPnl),0);leaks.push({cat:'Loss-Making SKUs',icon:'📉',sev:'high',amt:lt,desc:`${lossPs.length} product(s) are losing money: ${lossPs.map(x=>x.p.name).join(', ')}.`,fix:'Phase out or reprice before next season. These dilute overall collection margins.'});}
+  const tL=leaks.reduce((s,l)=>s+l.amt,0);
+  document.getElementById('leaks-list').innerHTML=leaks.map(l=>`<div class="li"><div><div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span>${l.icon}</span><span style="font-size:13px;font-weight:600">${l.cat}</span><span class="kb ${l.sev==='high'?'bg-danger':l.sev==='medium'?'bg-warn':'bg-neu'}">${l.sev.toUpperCase()}</span></div><div style="font-size:11.5px;color:var(--char);opacity:.7;margin-bottom:3px">${l.desc}</div><div style="font-size:11px;color:var(--gold)">→ ${l.fix}</div></div><div style="text-align:right;flex-shrink:0;margin-left:13px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:.09em;color:var(--danger)">Impact</div><div class="fm" style="font-size:14px;font-weight:700;color:var(--danger)">EGP ${fK(l.amt)}</div></div></div>`).join('');
+  document.getElementById('leak-sum').innerHTML=`<div class="card" style="padding:17px;background:rgba(139,26,26,.04);border-color:rgba(139,26,26,.14)"><div style="font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--danger);font-weight:600;margin-bottom:5px">Total Identified Leaks</div><div class="fd" style="font-size:25px;color:var(--danger)">EGP ${f(tL)}</div><div style="font-size:11.5px;color:var(--char);opacity:.6;margin-top:4px">Recoverable with operational improvements</div></div>`;
+  if(CR.lk)CR.lk.destroy();
+  const c=gc(),ctx=document.getElementById('c-lk');
+  if(ctx)CR.lk=new Chart(ctx,{type:'doughnut',data:{labels:leaks.map(l=>l.cat),datasets:[{data:leaks.map(l=>Math.round(l.amt)),backgroundColor:['rgba(139,26,26,.7)','rgba(192,122,16,.7)','rgba(46,95,163,.65)','rgba(26,92,58,.65)'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:c.t,font:{family:'DM Sans',size:10},padding:8}},tooltip:{callbacks:{label:ctx=>ctx.label+': EGP '+ctx.raw.toLocaleString()}}}}});
+}
+
+// ═══════════════════════════ EXPORT ═══════════════════════════
+// ═══════════════════════════ UNDO STACK ═══════════════════════════
+const UNDO_STACK=[];
+const UNDO_MAX=20;
+function pushUndo(){
+  UNDO_STACK.push({colls:deepClone(COLLS),sm:deepClone(SM)});
+  if(UNDO_STACK.length>UNDO_MAX)UNDO_STACK.shift();
+  updateUndoBtn();
+}
+function undo(){
+  if(UNDO_STACK.length===0)return;
+  const prev=UNDO_STACK.pop();
+  COLLS=prev.colls; SM=prev.sm;
+  saveData(); refreshAll(); updateUndoBtn();
+  showFlash('↩ Undone');
+}
+function updateUndoBtn(){
+  const btn=document.getElementById('undo-btn');
+  if(!btn)return;
+  btn.disabled=UNDO_STACK.length===0;
+  btn.style.opacity=UNDO_STACK.length===0?'0.35':'1';
+  btn.title=UNDO_STACK.length===0?'Nothing to undo':`Undo (${UNDO_STACK.length} step${UNDO_STACK.length>1?'s':''} available)`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT — pixel-perfect replica of Cost_Breakdown_v3.xlsx
+// Uses ExcelJS (free, full styling support) with live dashboard data
+// ═══════════════════════════════════════════════════════════════
+async function exportExcel(){
+  if(typeof ExcelJS==='undefined'){showFlash('⚠ Export library loading, try again in a moment',false);return;}
+  showFlash('⏳ Building Excel file…',true);
+
+  const all=getAll();
+  const d=new Date();
+  const dateStr=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  // ── Colour constants (exact from Cost_Breakdown_v3.xlsx) ──
+  const BROWN='FF8B5E3C', NAVY='FF1F3864', BL='FFBDD7EE', YEL='FFFFFF99',
+        LB2='FFDEEAF1', F7='FFF7F7F7', SAGE2='FF2E5FA3', CA='FFC9A84C',
+        PG='FFE2EFDA', PF='FF375623', LR='FFFCE4D6', LF='FFC00000',
+        BLU='FF0000FF', GRN='FF006400', GRY='FF808080', F5='FFF5F5F5',
+        WH='FFFFFFFF', BK='FF000000';
+
+  // ── Style helpers ──
+  const fill=c=>({type:'pattern',pattern:'solid',fgColor:{argb:c}});
+  const font=(bold,argb,sz,italic)=>({name:'Calibri',bold:!!bold,color:{argb:argb||BK},size:sz||10,italic:!!italic});
+  const al=(h,v,wrap)=>({horizontal:h||'center',vertical:v||'middle',wrapText:!!wrap});
+  const border=()=>({top:{style:'thin',color:{argb:'FFD9D9D9'}},bottom:{style:'thin',color:{argb:'FFD9D9D9'}},left:{style:'thin',color:{argb:'FFD9D9D9'}},right:{style:'thin',color:{argb:'FFD9D9D9'}}});
+  const thickBorder=()=>({top:{style:'medium',color:{argb:BROWN}},bottom:{style:'medium',color:{argb:BROWN}},left:{style:'medium',color:{argb:BROWN}},right:{style:'medium',color:{argb:BROWN}}});
+
+  function style(cell, fillArgb, fnt, align, numFmt){
+    if(fillArgb) cell.fill=fill(fillArgb);
+    if(fnt) cell.font=fnt;
+    if(align) cell.alignment=align;
+    if(numFmt) cell.numFmt=numFmt;
+    cell.border=border();
+  }
+
+  function hdr(ws, r, c, val, fillArgb, fnt, align, numFmt){
+    const cell=ws.getCell(r,c);
+    cell.value=val;
+    style(cell,fillArgb,fnt,align,numFmt);
+    return cell;
+  }
+
+  const wb=new ExcelJS.Workbook();
+  wb.creator='The Edit Society Dashboard';
+  wb.created=new Date();
+
+  // ══════════════════════════════════════════════
+  // COLLECTION SHEET
+  // ══════════════════════════════════════════════
+  function makeCollSheet(a){
+    const coll=a.col, m=a.m;
+    const prods=coll.products.filter(p=>p.name);
+    const n=prods.length;
+    const ws=wb.addWorksheet(coll.name,{views:[{state:'frozen',ySplit:5,showGridLines:false}]});
+    ws.properties.defaultRowHeight=22;
+
+    // Column widths
+    [4.03,20.04,9.95,6.99,11.03,9.95,9.95,6.05,11.03,6.99,
+     13.05,11.03,11.03,11.97,9.95,11.03,9.95,9.95,
+     11.97,13.05,9.01,11.97,13.99,11.97].forEach((w,i)=>{
+      ws.getColumn(i+1).width=w;
+    });
+
+    // R1: Title
+    ws.mergeCells(1,1,1,24);
+    const t1=ws.getCell(1,1);
+    t1.value=`COST BREAKDOWN  —  ${coll.name.toUpperCase()}`;
+    style(t1,BROWN,font(1,'FFFFFFFF',15),al('left','middle'));
+    ws.getRow(1).height=33.95;
+
+    // R2: Instructions
+    ws.mergeCells(2,1,2,24);
+    const t2=ws.getCell(2,1);
+    t2.value='BLUE CELLS = type here   |   GREEN ROW = profitable   |   RED ROW = selling at a loss (intentional)';
+    style(t2,F5,font(0,'FF595959',9),al('left','middle',true));
+    ws.getRow(2).height=15.95;
+
+    // R3: Overheads bar
+    ws.mergeCells(3,1,3,2);
+    const oh3=ws.getCell(3,1);
+    oh3.value='OVERHEADS THIS COLLECTION';
+    style(oh3,NAVY,font(1,'FFFFFFFF',10),al('left','middle'));
+    ws.getCell(3,2).fill=fill(NAVY);
+
+    const ohDef=[['Ads (EGP)',coll.oh.ads||0,3,4],['Marketing (EGP)',coll.oh.marketing||0,5,6],['Photoshoot (EGP)',coll.oh.photoshoot||0,7,8]];
+    ohDef.forEach(([lbl,val,lc,vc])=>{
+      const lCell=ws.getCell(3,lc); lCell.value=lbl; style(lCell,BL,font(0,NAVY,10),al('center','middle'));
+      const vCell=ws.getCell(3,vc); vCell.value=val; style(vCell,YEL,font(1,BLU,10),al('right','middle'),'#,##0');
+    });
+    ws.mergeCells(3,9,3,10);
+    const ohLbl=ws.getCell(3,9); ohLbl.value='Total Overheads'; style(ohLbl,BL,font(0,NAVY,10),al('center','middle'));
+    ws.getCell(3,10).fill=fill(BL);
+    const ohTot=Object.values(coll.oh).reduce((s,v)=>s+(v||0),0);
+    const ohVal=ws.getCell(3,11); ohVal.value=ohTot; style(ohVal,LB2,font(1,NAVY,11),al('right','middle'),'#,##0');
+    ws.getRow(3).height=26.1;
+
+    // R4: Section dividers
+    [[1,10,'INPUTS  —  fill in blue cells',BROWN],[11,14,'COST (auto)',SAGE2],
+     [15,16,'PRICING (auto)',SAGE2],[17,18,'MARGINS (auto)',SAGE2],
+     [19,21,'PROFIT / LOSS (auto)',SAGE2],[22,24,'RECOVERY INFO (auto)',SAGE2]]
+    .forEach(([c1,c2,lbl,col])=>{
+      ws.mergeCells(4,c1,4,c2);
+      const cell=ws.getCell(4,c1); cell.value=lbl; style(cell,col,font(1,'FFFFFFFF',8),al('center','middle'));
+      for(let c=c1+1;c<=c2;c++){ws.getCell(4,c).fill=fill(col);}
+    });
+    ws.getRow(4).height=18;
+
+    // R5: Column headers
+    const hdrs=['#','Product Name','Fabric\nEGP/m','m /\npiece','Mfg +\nSalia','Zipper /\nButton','Sample\n(EGP)','Qty','Target\nPrice','Sale\n%',
+      'Total\nCOG','COG /\npiece','Overhead\n/ piece','Total Cost\n/ piece','Sale\nPrice','Break-even\nPrice',
+      'Margin\nFull Price','Margin\nAfter Sale','Profit/Loss\nper unit','Total\nProfit/Loss','STATUS',
+      'Price for\n20% Margin','Units to\nRecover Loss','Loss as %\nof Sale Price'];
+    hdrs.forEach((h,i)=>{
+      const isInput=i<10;
+      const cell=ws.getCell(5,i+1); cell.value=h;
+      style(cell,isInput?BROWN:BL,font(1,isInput?'FFFFFFFF':NAVY,8),al('center','middle',true));
+    });
+    ws.getRow(5).height=36;
+
+    // Data rows
+    prods.forEach((p,pi)=>{
+      const ci=m.calcs[pi]; if(!ci) return;
+      const r=6+pi;
+      const bg=pi%2===0?WH:F7;
+      const disc=(p.tiers[0]?.disc||0);
+      const salePr=p.price*(1-disc);
+      const mFull=p.price>0?(p.price-ci.costPU)/p.price:0;
+      const mSale=salePr>0?(salePr-ci.costPU)/salePr:0;
+      const pnlPU=salePr-ci.costPU;
+      const totPnl=ci.totPnl;
+      const prof=totPnl>=0;
+      const price20=ci.costPU*1.25;
+      const unitsRec=!prof&&salePr>0?Math.ceil(Math.abs(totPnl)/salePr):null;
+      const lossPct=!prof&&salePr>0?Math.abs(pnlPU)/salePr:null;
+
+      // A: row num
+      const a1=ws.getCell(r,1); a1.value=pi+1; style(a1,bg,font(0,GRY,9),al('center','middle'));
+      // B: name
+      const b=ws.getCell(r,2); b.value=p.name; style(b,bg,font(1,BK,10),al('left','middle'));
+      // C-J: inputs
+      [[3,p.fabric,'#,##0',false],[4,p.meters,'0.0#',false],[5,p.mfg,'#,##0',false],
+       [6,p.zipper||0,'#,##0',false],[7,p.sample||0,'#,##0',false],[8,p.qty,'#,##0',true],
+       [9,p.price,'#,##0',true],[10,disc,'0%',false]]
+      .forEach(([c,v,fmt,bold])=>{const cell=ws.getCell(r,c);cell.value=v;style(cell,bg,font(bold,BLU,10),al('right','middle'),fmt);});
+      // K-N: costs
+      [[11,Math.round(ci.cog),'#,##0',GRN===GRN?BK:GRN],[12,Math.round(ci.cogPU),'#,##0',BK],
+       [13,Math.round(ci.ohPU),'#,##0',GRN],[14,Math.round(ci.costPU),'#,##0',BK]]
+      .forEach(([c,v,fmt,fg])=>{const cell=ws.getCell(r,c);cell.value=v;style(cell,bg,font(0,fg,10),al('right','middle'),fmt);});
+      // O: sale price
+      const oCell=ws.getCell(r,15); oCell.value=Math.round(salePr); style(oCell,bg,font(0,BK,10),al('right','middle'),'#,##0');
+      // P: breakeven (light blue)
+      const pCell=ws.getCell(r,16); pCell.value=Math.round(ci.costPU); style(pCell,LB2,font(0,BK,10),al('right','middle'),'#,##0');
+      // Q-R: margins
+      [[17,mFull],[18,mSale]].forEach(([c,v])=>{
+        const cell=ws.getCell(r,c); cell.value=v;
+        const fg=v>=0.35?PF:(v<0?LF:'FF7A4E00');
+        style(cell,bg,font(1,fg,10),al('right','middle'),'0.0%');
+      });
+      // S: pnl/unit
+      const sCell=ws.getCell(r,19); sCell.value=Math.round(pnlPU);
+      style(sCell,bg,font(1,pnlPU>=0?PF:LF,10),al('right','middle'),'#,##0;(#,##0)');
+      // T: total pnl (coloured bg)
+      const tCell=ws.getCell(r,20); tCell.value=Math.round(totPnl);
+      style(tCell,prof?PG:LR,font(1,prof?PF:LF,10),al('right','middle'),'#,##0;(#,##0)');
+      // U: STATUS
+      const uCell=ws.getCell(r,21); uCell.value=prof?'PROFIT':'LOSS';
+      style(uCell,prof?PG:LR,font(1,prof?PF:LF,10),al('center','middle'));
+      // V: price for 20%
+      const vCell=ws.getCell(r,22); vCell.value=Math.round(price20);
+      style(vCell,LB2,font(0,BK,10),al('right','middle'),'#,##0');
+      // W: units to recover
+      const wCell=ws.getCell(r,23); wCell.value=unitsRec!==null?unitsRec:'None';
+      style(wCell,bg,font(0,BK,10),al('center','middle'),unitsRec?'0.0':'');
+      // X: loss %
+      const xCell=ws.getCell(r,24); xCell.value=lossPct!==null?lossPct:'';
+      style(xCell,bg,font(0,BK,10),al('right','middle'),lossPct?'0.0%':'');
+      ws.getRow(r).height=21.95;
+    });
+
+    // TOTALS ROW
+    const tr=6+n;
+    ws.mergeCells(tr,1,tr,7);
+    ws.getCell(tr,1).value='TOTALS';
+    style(ws.getCell(tr,1),BROWN,font(1,'FFFFFFFF',11),al('left','middle'));
+    for(let c=2;c<=7;c++) ws.getCell(tr,c).fill=fill(BROWN);
+    const qTot=prods.reduce((s,p)=>s+p.qty,0);
+    ws.getCell(tr,8).value=qTot; style(ws.getCell(tr,8),BROWN,font(1,'FFFFFFFF',10),al('right','middle'),'#,##0');
+    for(let c=9;c<=10;c++){ws.getCell(tr,c).fill=fill(BROWN);}
+    ws.getCell(tr,11).value=Math.round(m.totCOG); style(ws.getCell(tr,11),BROWN,font(1,'FFFFFFFF',10),al('right','middle'),'#,##0');
+    for(let c=12;c<=19;c++){ws.getCell(tr,c).fill=fill(BROWN);}
+    ws.getCell(tr,20).value=Math.round(m.totPnL); style(ws.getCell(tr,20),BROWN,font(1,'FFFFFFFF',10),al('right','middle'),'#,##0;(#,##0)');
+    for(let c=21;c<=24;c++){ws.getCell(tr,c).fill=fill(BROWN);}
+    ws.getRow(tr).height=24;
+
+    // SPACER
+    ws.getRow(tr+1).height=9.95;
+
+    // SUMMARY BOX
+    const sb=tr+2;
+    ws.mergeCells(sb,1,sb,24);
+    ws.getCell(sb,1).value='COLLECTION SUMMARY';
+    style(ws.getCell(sb,1),NAVY,font(1,'FFFFFFFF',12),al('left','middle'));
+    for(let c=2;c<=24;c++) ws.getCell(sb,c).fill=fill(NAVY);
+    ws.getRow(sb).height=24;
+
+    // Summary labels
+    const sl=sb+1;
+    const lbDefs=[[1,3,'Total Units'],[4,3,'Total COG'],[7,3,'Total Overheads'],[10,3,'Total Revenue'],[13,3,'Total Profit / Loss'],[16,3,'Overall Margin %'],[19,3,'Products at LOSS'],[22,3,'Products PROFITABLE']];
+    lbDefs.forEach(([c,span,lbl])=>{
+      ws.mergeCells(sl,c,sl,c+span-1);
+      ws.getCell(sl,c).value=lbl;
+      style(ws.getCell(sl,c),BL,font(1,NAVY,8),al('center','middle'));
+      for(let i=1;i<span;i++) ws.getCell(sl,c+i).fill=fill(BL);
+    });
+    ws.getRow(sl).height=18;
+
+    // Summary values
+    const sv=sb+2;
+    const totRev=m.totRev, totPnL2=m.totPnL;
+    const marg=totRev>0?totPnL2/totRev:0;
+    const nLoss=m.calcs.filter(c=>c&&c.totPnl<0).length;
+    const nProf=m.calcs.filter(c=>c&&c.totPnl>=0).length;
+    [[1,3,qTot,'#,##0',LB2,NAVY],[4,3,Math.round(m.totCOG),'#,##0',LB2,NAVY],
+     [7,3,Math.round(ohTot),'#,##0',LB2,NAVY],[10,3,Math.round(totRev),'#,##0',PG,PF],
+     [13,3,Math.round(totPnL2),'#,##0;(#,##0)',totPnL2>=0?PG:LR,totPnL2>=0?PF:LF],
+     [16,3,marg,'0.0%',LB2,NAVY],[19,3,nLoss,'#,##0',LR,LF],[22,3,nProf,'#,##0',PG,PF]]
+    .forEach(([c,span,val,fmt,bg,fg])=>{
+      ws.mergeCells(sv,c,sv,c+span-1);
+      ws.getCell(sv,c).value=val;
+      style(ws.getCell(sv,c),bg,font(1,fg,14),al('center','middle'),fmt);
+      for(let i=1;i<span;i++) ws.getCell(sv,c+i).fill=fill(bg);
+    });
+    ws.getRow(sv).height=36;
+  }
+
+  // ══════════════════════════════════════════════
+  // DASHBOARD SHEET
+  // ══════════════════════════════════════════════
+  const dash=wb.addWorksheet('Dashboard',{views:[{showGridLines:false}]});
+  [2,26,20,18,18,18,18,18,2].forEach((w,i)=>dash.getColumn(i+1).width=w);
+
+  // Title
+  dash.mergeCells(1,2,2,8);
+  dash.getCell(1,2).value='COST BREAKDOWN  -  MASTER DASHBOARD';
+  style(dash.getCell(1,2),NAVY,font(1,'FFFFFFFF',16),al('left','middle'));
+  for(let c=3;c<=8;c++) dash.getCell(1,c).fill=fill(NAVY);
+  for(let c=2;c<=8;c++) dash.getCell(2,c).fill=fill(NAVY);
+  dash.getRow(1).height=30; dash.getRow(2).height=15; dash.getRow(3).height=12;
+
+  // Registry header
+  dash.mergeCells(4,2,4,8);
+  dash.getCell(4,2).value='COLLECTION REGISTRY';
+  style(dash.getCell(4,2),CA,font(1,'FFFFFFFF',11),al('left','middle'));
+  for(let c=3;c<=8;c++) dash.getCell(4,c).fill=fill(CA);
+  dash.getRow(4).height=22;
+
+  // Headers row 5
+  [['#',2],['Collection',3],['Revenue (EGP)',4],['Total Cost (EGP)',5],['Net Profit (EGP)',6],['Margin %',7],['Units',8]].forEach(([h,c])=>{
+    dash.getCell(5,c).value=h; style(dash.getCell(5,c),NAVY,font(1,'FFFFFFFF',10),al('center','middle'));
+  });
+  dash.getRow(5).height=22;
+
+  // Collection rows
+  all.forEach((a,i)=>{
+    const r=6+i; const bg=i%2===0?F7:WH;
+    dash.getCell(r,2).value=i+1; style(dash.getCell(r,2),bg,font(0,BK,10),al('center','middle'));
+    dash.getCell(r,3).value=a.col.name; style(dash.getCell(r,3),YEL,font(1,BK,10),al('left','middle'));
+    dash.getCell(r,4).value=Math.round(a.m.totRev); style(dash.getCell(r,4),bg,font(0,BK,10),al('right','middle'),'#,##0');
+    dash.getCell(r,5).value=Math.round(a.m.totCOG+a.m.dOH); style(dash.getCell(r,5),bg,font(0,BK,10),al('right','middle'),'#,##0');
+    dash.getCell(r,6).value=Math.round(a.m.totPnL); style(dash.getCell(r,6),bg,font(1,a.m.totPnL>=0?PF:LF,10),al('right','middle'),'#,##0;(#,##0)');
+    dash.getCell(r,7).value=a.m.margin; style(dash.getCell(r,7),bg,font(1,a.m.margin>=0.35?PF:(a.m.margin<0?LF:'FF7A4E00'),10),al('right','middle'),'0.0%');
+    dash.getCell(r,8).value=a.m.totUnits; style(dash.getCell(r,8),bg,font(0,BK,10),al('right','middle'),'#,##0');
+    dash.getRow(r).height=22;
+  });
+
+  // Totals
+  const tR3=all.reduce((s,a)=>s+a.m.totRev,0);
+  const tP3=all.reduce((s,a)=>s+a.m.totPnL,0);
+  const tC3=all.reduce((s,a)=>s+a.m.totCOG+a.m.dOH,0);
+  const tM3=tR3>0?tP3/tR3:0;
+  const tU3=all.reduce((s,a)=>s+a.m.totUnits,0);
+  const tr3=6+all.length+1;
+  dash.mergeCells(tr3,2,tr3,8);
+  dash.getCell(tr3,2).value='COMBINED TOTALS  (all collections)';
+  style(dash.getCell(tr3,2),SAGE2,font(1,'FFFFFFFF',11),al('left','middle'));
+  for(let c=3;c<=8;c++) dash.getCell(tr3,c).fill=fill(SAGE2);
+  dash.getRow(tr3).height=22;
+
+  [['TOTAL',2],['Revenue',4],['Total Cost',5],['Net Profit',6],['Margin %',7],['Units',8]].forEach(([h,c])=>{
+    dash.getCell(tr3+1,c).value=h; style(dash.getCell(tr3+1,c),'FFF0F0F0',font(0,BK,10),al('center','middle'));
+  });
+  dash.getCell(tr3+2,2).value='ALL'; style(dash.getCell(tr3+2,2),SAGE2,font(1,'FFFFFFFF',11),al('center','middle'));
+  dash.getCell(tr3+2,4).value=Math.round(tR3); style(dash.getCell(tr3+2,4),WH,font(1,PF,11),al('right','middle'),'#,##0');
+  dash.getCell(tr3+2,5).value=Math.round(tC3); style(dash.getCell(tr3+2,5),WH,font(1,BK,11),al('right','middle'),'#,##0');
+  dash.getCell(tr3+2,6).value=Math.round(tP3); style(dash.getCell(tr3+2,6),WH,font(1,tP3>=0?PF:LF,11),al('right','middle'),'#,##0;(#,##0)');
+  dash.getCell(tr3+2,7).value=tM3; style(dash.getCell(tr3+2,7),WH,font(1,tM3>=0.35?PF:(tM3<0?LF:'FF7A4E00'),11),al('right','middle'),'0.0%');
+  dash.getCell(tr3+2,8).value=tU3; style(dash.getCell(tr3+2,8),WH,font(1,BK,11),al('right','middle'),'#,##0');
+
+  // ── How To Use ──
+  const how=wb.addWorksheet('How To Use',{views:[{showGridLines:false}]});
+  how.getColumn(1).width=2; how.getColumn(2).width=24; how.getColumn(3).width=70;
+  how.mergeCells(1,2,1,3);
+  how.getCell(1,2).value='HOW TO USE THIS FILE';
+  style(how.getCell(1,2),BROWN,font(1,'FFFFFFFF',14),al('center','middle'));
+  how.getRow(1).height=28;
+  const tips=[
+    ['Dashboard tab','Overview of all collections — revenue, cost, net profit, margin.'],
+    ['Collection tabs','Each collection on its own sheet. Blue cells = your inputs only.'],
+    ['Blue cells','Fabric EGP/m, meters, manufacturing, zipper, sample, qty, price, sale %.'],
+    ['COST (auto)','Total COG, COG/unit, overhead/unit, total cost/unit.'],
+    ['PRICING (auto)','Sale price after discount, and breakeven price.'],
+    ['MARGINS (auto)','Margin at full price and after sale. Green 35%+, amber 15-35%, red below 0%.'],
+    ['PROFIT/LOSS','P&L per unit and total. Green bg = profitable. Red bg = loss.'],
+    ['RECOVERY','If loss: price for 20% margin, units to recover, loss as % of sale.'],
+    ['Collection Summary','KPI box at bottom: units, COG, overheads, revenue, P&L, margin count.'],
+    ['COG Formula','Fabric×m×Qty + Mfg×Qty + Zipper×Qty + Sample + TR(20)×Qty + LB(7.75)×Qty'],
+    ['Exported from','TES Dashboard · '+dateStr+' · theeditsociety-dotcom.github.io/tes-dashboard-update'],
+  ];
+  tips.forEach(([t,desc],i)=>{
+    const r=i+3;
+    how.getCell(r,2).value=t; style(how.getCell(r,2),BL,font(1,NAVY,10),al('left','middle'));
+    how.mergeCells(r,3,r,5);
+    how.getCell(r,3).value=desc; style(how.getCell(r,3),WH,font(0,BK,10),{horizontal:'left',vertical:'middle',wrapText:true});
+    how.getRow(r).height=22;
+  });
+
+  // ── Collection sheets ──
+  all.forEach(a=>makeCollSheet(a));
+
+  // ── Inventory sheet ──
+  const inv=wb.addWorksheet('Inventory',{views:[{showGridLines:false}]});
+  [18,22,10,9,10,10,13,14,14,11].forEach((w,i)=>inv.getColumn(i+1).width=w);
+  const invHdrs=['Collection','Product','Produced','Sold','Giveaway','Remaining','Sell-Through %','Status','Net P&L (EGP)','Margin %'];
+  invHdrs.forEach((h,i)=>{inv.getCell(1,i+1).value=h; style(inv.getCell(1,i+1),BROWN,font(1,'FFFFFFFF',9),al('center','middle',true));});
+  inv.getRow(1).height=24;
+  let ir=2;
+  all.forEach(a=>{
+    a.col.products.filter(p=>p.name).forEach((p,pi)=>{
+      const c=a.m.calcs[pi]; if(!c) return;
+      const sold=c.sellQty; const rem=Math.max(0,p.qty-sold-(p.giveaway||0));
+      const st=p.qty>0?sold/p.qty:0;
+      const status=st>=0.85?'Hot Seller':st>=0.70?'On Track':st>=0.50?'Slow Moving':'Dead Stock Risk';
+      const bg=ir%2===0?F7:WH;
+      const statusBg=status==='Hot Seller'?PG:status==='Dead Stock Risk'?LR:bg;
+      [a.col.name,p.name,p.qty,sold,p.giveaway||0,rem,st,status,Math.round(c.totPnl),c.marginSale].forEach((v,i)=>{
+        const cell=inv.getCell(ir,i+1);cell.value=v;
+        const fmts=[null,null,'#,##0','#,##0','#,##0','#,##0','0.0%',null,'#,##0;(#,##0)','0.0%'];
+        const fg=i===8?(c.totPnl>=0?PF:LF):(i===9?(c.marginSale>=0.35?PF:(c.marginSale<0?LF:BK)):BK);
+        style(cell,i===7?statusBg:bg,font(i>=8,fg,10),al(i>1?'right':'left','middle'),fmts[i]||'');
+      });
+      ir++;
+    });
+  });
+
+  // Generate and download
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.href=url; link.download=`TES-Dashboard-${dateStr}.xlsx`; link.click();
+  URL.revokeObjectURL(url);
+  showFlash('✓ Styled Excel exported with live data');
+}
+
+// ═══════════════════════════ MODAL ═══════════════════════════
+let _modalCb=null;
+function showModal(title,msg,cb,btnTxt='Confirm',btnColor='var(--danger)'){
+  _modalCb=cb;
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-msg').textContent=msg;
+  const ok=document.getElementById('modal-ok');
+  ok.textContent=btnTxt; ok.style.background=btnColor;
+  // Clone node to remove any stale listeners
+  const newOk=ok.cloneNode(true);
+  ok.parentNode.replaceChild(newOk,ok);
+  newOk.onclick=()=>{
+    const cb=_modalCb; // capture before closeModal nulls it
+    closeModal();
+    if(cb) cb();
+  };
+  const ov=document.getElementById('modal-overlay');
+  ov.style.display='flex';
+  requestAnimationFrame(()=>ov.style.opacity='1');
+}
+function closeModal(){
+  const ov=document.getElementById('modal-overlay');
+  ov.style.opacity='0';
+  setTimeout(()=>ov.style.display='none',200);
+  _modalCb=null;
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('modal-overlay').style.transition='opacity .2s';
+  document.getElementById('modal-overlay').style.opacity='0';
+  document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
+});
+
+// ═══════════════════════════ PILL HELPER ═══════════════════════════
+const PILL_COLORS=['#8B1A1A','#2E5FA3','#2E8B57','#6B3A8B','#B8600A','#006B77','#8B4A1A','#5A5A2A'];
+function pillClass(color){
+  const map={'#8B1A1A':'pdrop1','#2E5FA3':'pramadan','#2E8B57':'pnewcoll'};
+  return map[color]||'pdrop1';
+}
+function getPillStyle(color){return `background:${color}22;color:${color};`;}
+
+// ═══════════════════════════ COLLECTION ACTIONS ═══════════════════════════
+function addCollection(){
+  pushUndo();
+  const id='c'+Date.now();
+  const color=PILL_COLORS[COLLS.length%PILL_COLORS.length];
+  COLLS.push({id,name:'New Collection',color,pill:'pdrop1',
+    oh:{ads:0,marketing:0,photoshoot:0,ugc:0},products:[]});
+  EDITOR_COLL_ID=id;
+  saveData(); refreshAll(); nav('editor');
+}
+function deleteCollection(id){
+  const col=COLLS.find(c=>c.id===id);
+  showModal(`Delete "${col?.name}"?`,`This will remove the collection and all ${col?.products?.length||0} products. You can undo this.`,()=>{
+    pushUndo();
+    COLLS=COLLS.filter(c=>c.id!==id);
+    saveData(); refreshAll();
+  });
+}
+function updateCollField(id,field,val){
+  const col=COLLS.find(c=>c.id===id);if(!col)return;
+  if(field==='name') col.name=val;
+  else if(field==='color'){col.color=val;}
+  saveData(); refreshAll();
+}
+function updateOH(collId,field,val){
+  const col=COLLS.find(c=>c.id===collId);if(!col)return;
+  col.oh[field]=parseFloat(val)||0;
+  saveData(); refreshAll();
+}
+
+// ═══════════════════════════ PRODUCT ACTIONS ═══════════════════════════
+function addProduct(collId){
+  const col=COLLS.find(c=>c.id===collId);if(!col)return;
+  col.products.push({name:'New Product',fabric:0,meters:1,mfg:0,zipper:0,sample:0,qty:10,price:1000,tiers:[{qty:10,disc:0,sold:0}],giveaway:0});
+  saveData(); buildEditor();
+  setTimeout(()=>{const last=document.querySelector(`#prod-list-${collId} .ed-prod-row:last-child input`);last?.focus();},100);
+}
+function deleteProduct(collId,pi){
+  const col=COLLS.find(c=>c.id===collId);if(!col)return;
+  const pname=col.products[pi]?.name||'this product';
+  showModal(`Delete "${pname}"?`,`This product will be removed from ${col.name}. You can undo this.`,()=>{
+    pushUndo();
+    col.products.splice(pi,1);
+    saveData(); refreshAll();
+  });
+}
+function updateProd(collId,pi,field,val){
+  const col=COLLS.find(c=>c.id===collId);if(!col||!col.products[pi])return;
+  const p=col.products[pi];
+  if(['fabric','meters','mfg','zipper','sample','qty','price','giveaway'].includes(field)){
+    p[field]=parseFloat(val)||0;
+  } else if(field==='name'){
+    p[field]=val;
+  }
+  saveData(); refreshAll();
+}
+
+// ═══════════════════════════ TIER ACTIONS ═══════════════════════════
+function addTier(collId,pi){
+  const col=COLLS.find(c=>c.id===collId);if(!col||!col.products[pi])return;
+  col.products[pi].tiers.push({qty:0,disc:0,sold:0});
+  saveData(); buildEditor();
+}
+function deleteTier(collId,pi,ti){
+  const col=COLLS.find(c=>c.id===collId);if(!col||!col.products[pi])return;
+  if(col.products[pi].tiers.length<=1){alert('Each product needs at least one pricing tier.');return;}
+  col.products[pi].tiers.splice(ti,1);
+  saveData(); refreshAll();
+}
+function updateTier(collId,pi,ti,field,val){
+  const col=COLLS.find(c=>c.id===collId);if(!col||!col.products[pi])return;
+  const tier=col.products[pi].tiers[+ti];if(!tier)return;
+  if(field==='qty'){
+    tier.qty=Math.max(0,parseFloat(val)||0);
+    // clamp sold to new qty
+    if((tier.sold||0)>tier.qty)tier.sold=tier.qty;
+  } else if(field==='disc'){
+    tier.disc=parseFloat(val)||0;
+  } else if(field==='sold'){
+    tier.sold=Math.max(0,Math.min(parseFloat(val)||0, tier.qty||0));
+  }
+  saveData(); refreshAll();
+}
+
+// ═══════════════════════════ BUILD EDITOR ═══════════════════════════
+function editorNavColl(id){
+  EDITOR_COLL_ID=id;
+  buildEditor();
+}
+
+function buildEditor(){
+  const wrap=document.getElementById('editor-wrap');
+  if(!wrap)return;
+
+  // Default to first collection if none selected or selection gone
+  if(!EDITOR_COLL_ID||!COLLS.find(c=>c.id===EDITOR_COLL_ID)){
+    EDITOR_COLL_ID=COLLS[0]?.id||null;
+  }
+
+  // ── Collection tab bar ──
+  const tabBar=`
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--mist)">
+      ${COLLS.map(col=>{
+        const active=col.id===EDITOR_COLL_ID;
+        return`<button onclick="editorNavColl('${col.id}')"
+          style="padding:7px 16px;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;border:1.5px solid;transition:all .15s;
+          background:${active?col.color:'transparent'};color:${active?'#fff':col.color};border-color:${col.color}${active?'':'88'};
+          ${active?'box-shadow:0 2px 8px '+col.color+'44':''}"
+          >${col.name}</button>`;
+      }).join('')}
+    </div>`;
+
+  // Only render the active collection
+  const visibleColls=COLLS.filter(col=>col.id===EDITOR_COLL_ID);
+
+  wrap.innerHTML=tabBar+visibleColls.map(col=>{
+    const m=calcColl(col);
+
+    // ── Overhead section ──
+    const ohSection=`
+      <div style="background:var(--paper);border:1px solid var(--mist);border-radius:10px;padding:18px;margin-bottom:14px">
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:14px">
+          Marketing &amp; Overheads
+          <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:400;color:var(--char);opacity:.6;text-transform:none;letter-spacing:0;margin-left:8px">
+            Total: EGP ${f(m.dOH)} &nbsp;·&nbsp; ROAS: <span style="color:${m.dOH>0&&m.totRev/m.dOH>=3?'var(--good)':'var(--warn)'}">${m.dOH>0?(m.totRev/m.dOH).toFixed(1)+'x':'N/A'}</span>
+          </span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          ${['ads','marketing','photoshoot','ugc'].map(k=>`
+            <div>
+              <label style="font-size:10px;color:var(--char);opacity:.6;display:block;margin-bottom:5px;text-transform:capitalize">${k}</label>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:11px;color:var(--char);opacity:.4;flex-shrink:0">EGP</span>
+                <input type="number" min="0"
+                  style="flex:1;background:var(--cream);border:1px solid var(--mist);border-radius:7px;padding:8px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--ink);outline:none;width:100%"
+                  value="${col.oh[k]||0}"
+                  onblur="updateOH('${col.id}','${k}',this.value)"
+                  onkeydown="if(event.key==='Enter')this.blur()"
+                  onfocus="this.style.borderColor='var(--gold)'"
+                  onblur2="this.style.borderColor='var(--mist)'"/>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+
+    // ── Product cards ──
+    const prodCards=col.products.map((p,pi)=>{
+      const c2=m.calcs[pi];
+      // Calculate "if all sold" scenario
+      let c2all=null;
+      if(p.name){
+        const totCOG2=col.products.reduce((s,px)=>px.name?s+(px.fabric*px.meters*px.qty)+(px.mfg*px.qty)+((px.zipper||0)*px.qty)+(px.sample||0)+(TR*px.qty)+(LB*px.qty):s,0);
+        c2all=calcProdIfAllSold(p,m.dOH,totCOG2);
+      }
+      const isPartial=c2&&c2all&&Math.round(c2.sellQty)!==Math.round(c2all.sellQty);
+      const tierRows=(p.tiers||[]).map((t,ti)=>`
+        <div style="display:grid;grid-template-columns:80px 1fr auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--mist)">
+          <div>
+            <label style="font-size:9px;color:var(--char);opacity:.5;display:block;margin-bottom:3px">Planned</label>
+            <input type="number" min="0"
+              style="width:100%;background:var(--cream);border:1px solid var(--mist);border-radius:6px;padding:6px 8px;font-size:12px;font-family:'DM Mono',monospace;color:var(--ink);outline:none;text-align:center"
+              value="${t.qty}"
+              onblur="updateTier('${col.id}',${pi},'${ti}','qty',this.value)"
+              onkeydown="if(event.key==='Enter')this.blur()"/>
+          </div>
+          <div>
+            <label style="font-size:9px;color:var(--char);opacity:.5;display:block;margin-bottom:3px">Discount</label>
+            <select style="width:100%;background:var(--cream);border:1px solid var(--mist);border-radius:6px;padding:6px 8px;font-size:12px;color:var(--ink);outline:none"
+              onchange="updateTier('${col.id}',${pi},'${ti}','disc',this.value)">
+              ${[0,.05,.10,.15,.20,.25,.30,.35,.40,.50].map(d=>`<option value="${d}" ${Math.abs((t.disc||0)-d)<.001?'selected':''}>${d===0?'Full price':'-'+(d*100).toFixed(0)+'% → EGP '+f(p.price*(1-d))}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:9px;color:var(--good);opacity:.8;display:block;margin-bottom:3px">Sold</label>
+            <input type="number" min="0" max="${t.qty}"
+              style="width:68px;background:rgba(26,92,58,.05);border:1px solid rgba(26,92,58,.25);border-radius:6px;padding:6px 8px;font-size:12px;font-family:'DM Mono',monospace;color:var(--good);outline:none;text-align:center"
+              value="${t.sold!=null?t.sold:t.qty}"
+              onblur="updateTier('${col.id}',${pi},'${ti}','sold',this.value)"
+              onkeydown="if(event.key==='Enter')this.blur()"/>
+          </div>
+          <div style="padding-top:16px">
+            ${(p.tiers||[]).length>1?`<button onclick="deleteTier('${col.id}',${pi},${ti})"
+              style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;opacity:.5;padding:2px 4px" title="Remove tier">×</button>`:'<span style="width:24px;display:inline-block"></span>'}
+          </div>
+        </div>`).join('');
+
+      return`
+        <div style="background:var(--paper);border:1px solid var(--mist);border-radius:10px;margin-bottom:10px;overflow:hidden">
+          <!-- Product header bar -->
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:${col.color}08;border-bottom:1px solid var(--mist)">
+            <input type="text"
+              style="flex:1;font-family:'Playfair Display',serif;font-size:15px;font-weight:600;background:transparent;border:none;border-bottom:1.5px solid transparent;color:var(--ink);outline:none;padding:2px 0;min-width:0"
+              value="${p.name}"
+              onblur="updateProd('${col.id}',${pi},'name',this.value)"
+              onkeydown="if(event.key==='Enter')this.blur()"
+              onfocus="this.style.borderBottomColor='var(--gold)'"
+              onblur2="this.style.borderBottomColor='transparent'"/>
+            ${c2?`
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+              ${isPartial?`
+              <div style="display:flex;align-items:center;gap:5px">
+                <span style="font-size:9px;color:var(--char);opacity:.55;white-space:nowrap">Actual sold:</span>
+                <span class="kb ${mb(c2.marginSale)}">${fp(c2.marginSale)}</span>
+                <span class="fm" style="font-size:11.5px;font-weight:700;color:${c2.totPnl>=0?'var(--good)':'var(--danger)'}">EGP ${f(c2.totPnl)}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px">
+                <span style="font-size:9px;color:var(--sage);opacity:.8;white-space:nowrap">If all sold:</span>
+                <span class="kb" style="background:rgba(46,95,163,.12);color:var(--sage)">${fp(c2all.marginSale)}</span>
+                <span class="fm" style="font-size:11.5px;font-weight:700;color:var(--sage)">EGP ${f(c2all.totPnl)}</span>
+              </div>
+              `:` 
+              <div style="display:flex;align-items:center;gap:5px">
+                <span class="kb ${mb(c2.marginSale)}">${fp(c2.marginSale)}</span>
+                <span class="fm" style="font-size:12px;font-weight:600;color:${c2.totPnl>=0?'var(--good)':'var(--danger)'}">EGP ${f(c2.totPnl)}</span>
+              </div>
+              `}
+            </div>`:''}
+            <button onclick="deleteProduct('${col.id}',${pi})"
+              style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;opacity:.4;padding:2px 6px;flex-shrink:0" title="Delete product">🗑</button>
+          </div>
+
+          <div style="padding:14px 16px">
+            <!-- Cost fields in clean 3-col grid -->
+            <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--char);opacity:.5;margin-bottom:10px">Production Costs</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+              ${[
+                ['Fabric (EGP/m)','fabric',p.fabric,''],
+                ['Meters','meters',p.meters,'0.1'],
+                ['Manufacturing','mfg',p.mfg,''],
+                ['Zipper / Extras','zipper',p.zipper,''],
+                ['Sample Cost','sample',p.sample,''],
+                ['Giveaway Units','giveaway',p.giveaway,''],
+              ].map(([lbl,fld,val,step])=>`
+                <div>
+                  <label style="font-size:10px;color:var(--char);opacity:.55;display:block;margin-bottom:4px">${lbl}</label>
+                  <input type="number" min="0" ${step?`step="${step}"`:''}
+                    style="width:100%;background:var(--cream);border:1px solid var(--mist);border-radius:7px;padding:7px 10px;font-size:13px;font-family:'DM Mono',monospace;color:var(--ink);outline:none"
+                    value="${val}"
+                    onblur="updateProd('${col.id}',${pi},'${fld}',this.value)"
+                    onkeydown="if(event.key==='Enter')this.blur()"
+                    onfocus="this.style.borderColor='var(--gold)'"
+                    onblur2="this.style.borderColor='var(--mist)'"/>
+                </div>`).join('')}
+            </div>
+
+            <!-- Qty + Price side by side prominently -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+              <div style="background:var(--cream);border-radius:8px;padding:12px 14px;border:1px solid var(--mist)">
+                <label style="font-size:10px;color:var(--char);opacity:.55;display:block;margin-bottom:5px">Production Qty</label>
+                <input type="number" min="0"
+                  style="width:100%;background:transparent;border:none;border-bottom:1.5px solid var(--mist);font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--ink);outline:none;padding:2px 0"
+                  value="${p.qty}"
+                  onblur="updateProd('${col.id}',${pi},'qty',this.value)"
+                  onkeydown="if(event.key==='Enter')this.blur()"
+                  onfocus="this.style.borderBottomColor='var(--gold)'"/>
+                <div style="font-size:10px;color:var(--char);opacity:.4;margin-top:3px">units total</div>
+              </div>
+              <div style="background:var(--cream);border-radius:8px;padding:12px 14px;border:1px solid var(--mist)">
+                <label style="font-size:10px;color:var(--char);opacity:.55;display:block;margin-bottom:5px">Full Price (EGP)</label>
+                <input type="number" min="0"
+                  style="width:100%;background:transparent;border:none;border-bottom:1.5px solid var(--mist);font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--ink);outline:none;padding:2px 0"
+                  value="${p.price}"
+                  onblur="updateProd('${col.id}',${pi},'price',this.value)"
+                  onkeydown="if(event.key==='Enter')this.blur()"
+                  onfocus="this.style.borderBottomColor='var(--gold)'"/>
+                <div style="font-size:10px;color:var(--char);opacity:.4;margin-top:3px">COG/unit: EGP ${c2?f(c2.cogPU):'—'}</div>
+              </div>
+            </div>
+
+            <!-- Pricing tiers -->
+            <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--char);opacity:.5;margin-bottom:8px">Pricing Tiers</div>
+            ${tierRows}
+            <button onclick="addTier('${col.id}',${pi})"
+              style="margin-top:10px;background:none;border:1.5px dashed var(--mist);color:var(--char);opacity:.6;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;width:100%">
+              + Add Tier
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+
+    return`
+      <div style="background:var(--cream);border:1px solid var(--mist);border-radius:12px;margin-bottom:22px;overflow:hidden">
+
+        <!-- Collection header -->
+        <div style="padding:16px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--mist);flex-wrap:wrap;background:${col.color}10">
+          <input type="color" value="${col.color}"
+            style="width:28px;height:28px;border:none;border-radius:50%;cursor:pointer;padding:0;background:none;flex-shrink:0"
+            onchange="updateCollField('${col.id}','color',this.value)" title="Collection colour"/>
+          <input type="text"
+            style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--ink);outline:none;padding:2px 0;flex:1;min-width:120px"
+            value="${col.name}"
+            onblur="updateCollField('${col.id}','name',this.value)"
+            onkeydown="if(event.key==='Enter')this.blur()"
+            onfocus="this.style.borderBottomColor='var(--gold)'"
+            onblur2="this.style.borderBottomColor='transparent'"/>
+          <div style="display:flex;gap:18px;flex-wrap:wrap">
+            <div style="text-align:right"><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Revenue</div><div class="fm" style="font-size:13px;font-weight:600">EGP ${fK(m.totRev)}</div></div>
+            <div style="text-align:right"><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Net P&L</div><div class="fm" style="font-size:13px;font-weight:600;color:${m.totPnL>=0?'var(--good)':'var(--danger)'}">EGP ${fK(m.totPnL)}</div></div>
+            <div style="text-align:right"><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Margin</div><span class="kb ${mb(m.margin)}">${fp(m.margin)}</span></div>
+          </div>
+          <button onclick="deleteCollection('${col.id}')"
+            style="background:rgba(139,26,26,.08);border:1px solid rgba(139,26,26,.2);color:var(--danger);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500;flex-shrink:0">
+            🗑 Delete
+          </button>
+        </div>
+
+        <div style="padding:18px 20px">
+          ${ohSection}
+          <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:12px">
+            Products
+            <span style="font-size:10px;font-weight:400;color:var(--char);opacity:.45;text-transform:none;letter-spacing:0;margin-left:6px">${col.products.length} products</span>
+          </div>
+          <div id="prod-list-${col.id}">${prodCards}</div>
+          <button onclick="addProduct('${col.id}')"
+            style="width:100%;background:none;border:1.5px dashed ${col.color}55;color:${col.color};border-radius:8px;padding:10px;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500;margin-top:4px">
+            + Add Product to ${col.name}
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════ SHARED CAMPAIGNS CRUD ═══════════════════════════
+function addCampaign(){
+  SM.push({id:'sm'+Date.now(),name:'New Campaign',budget:0,tranches:[],pendingColls:COLLS.map(c=>c.id)});
+  saveData();buildSM();
+  setTimeout(()=>document.querySelector('.sm-name-input')?.focus(),100);
+}
+function deleteCampaign(smId){
+  const sm=SM.find(s=>s.id===smId);
+  showModal(`Delete "${sm?.name}"?`,'All tranches and allocation data for this campaign will be removed.',()=>{
+    SM=SM.filter(s=>s.id!==smId);
+    saveData();refreshAll();
+  });
+}
+function updateSM(smId,field,val){
+  const sm=SM.find(s=>s.id===smId);if(!sm)return;
+  if(field==='name')sm.name=val;
+  else if(field==='budget')sm.budget=parseFloat(val)||0;
+  saveData();buildSM();refreshAll();
+}
+function togglePendingColl(smId,collId,checked){
+  const sm=SM.find(s=>s.id===smId);if(!sm)return;
+  sm.pendingColls=sm.pendingColls||[];
+  if(checked){if(!sm.pendingColls.includes(collId))sm.pendingColls.push(collId);}
+  else{sm.pendingColls=sm.pendingColls.filter(c=>c!==collId);}
+  saveData();buildSM();refreshAll();
+}
+function addTranche(smId){
+  const sm=SM.find(s=>s.id===smId);if(!sm)return;
+  sm.tranches=sm.tranches||[];
+  sm.tranches.push({id:'t'+Date.now(),label:'Spend Record',amount:0,activeColls:COLLS.map(c=>c.id)});
+  saveData();buildSM();
+}
+function deleteTranche(smId,tId){
+  const sm=SM.find(s=>s.id===smId);if(!sm)return;
+  sm.tranches=sm.tranches.filter(t=>t.id!==tId);
+  saveData();refreshAll();
+}
+function updateTranche(smId,tId,field,val){
+  const sm=SM.find(s=>s.id===smId);if(!sm)return;
+  const t=sm.tranches.find(t=>t.id===tId);if(!t)return;
+  if(field==='label')t.label=val;
+  else if(field==='amount'){t.amount=parseFloat(val)||0;}
+  saveData();buildSM();refreshAll();
+}
+function toggleTrancheCol(smId,tId,collId,checked){
+  const sm=SM.find(s=>s.id===smId);if(!sm)return;
+  const t=sm.tranches.find(t=>t.id===tId);if(!t)return;
+  t.activeColls=t.activeColls||[];
+  if(checked){if(!t.activeColls.includes(collId))t.activeColls.push(collId);}
+  else{t.activeColls=t.activeColls.filter(c=>c!==collId);}
+  saveData();buildSM();refreshAll();
+}
+function lockPending(smId){
+  const sm=SM.find(s=>s.id===smId);if(!sm)return;
+  const locked=(sm.tranches||[]).reduce((s,t)=>s+(t.amount||0),0);
+  const pending=Math.max(0,(sm.budget||0)-locked);
+  if(pending<=0){alert('No pending amount to lock.');return;}
+  sm.tranches=sm.tranches||[];
+  sm.tranches.push({id:'t'+Date.now(),label:'Locked Spend',amount:pending,activeColls:[...(sm.pendingColls||[])]});
+  saveData();buildSM();refreshAll();
+}
+
+// ═══════════════════════════ BUILD SHARED CAMPAIGNS UI ═══════════════════════════
+function buildSM(){
+  const wrap=document.getElementById('sm-wrap');
+  if(!wrap)return;
+  if(SM.length===0){
+    wrap.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--char);opacity:.5">
+      <div style="font-size:32px;margin-bottom:10px">⇄</div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:6px">No shared campaigns yet</div>
+      <div style="font-size:12px">Use this when one ad spend or campaign covers multiple collections at once.</div>
+    </div>`;
+    buildSMSummary();return;
+  }
+  wrap.innerHTML=SM.map(sm=>{
+    const locked=(sm.tranches||[]).reduce((s,t)=>s+(t.amount||0),0);
+    const pending=Math.max(0,(sm.budget||0)-locked);
+    const lockedPct=sm.budget>0?Math.min(100,(locked/sm.budget)*100):0;
+
+    const trancheRows=(sm.tranches||[]).map(t=>{
+      const collChecks=COLLS.map(col=>{
+        const inc=(t.activeColls||[]).includes(col.id);
+        const share=inc?trancheShare(t,col.id):0;
+        return`<div class="coll-check">
+          <input type="checkbox" ${inc?'checked':''} onchange="toggleTrancheCol('${sm.id}','${t.id}','${col.id}',this.checked)"/>
+          <span style="width:8px;height:8px;border-radius:50%;background:${col.color};display:inline-block;flex-shrink:0"></span>
+          <span style="flex:1">${col.name}</span>
+          <span class="fm" style="font-size:11px;color:${inc?'var(--good)':'var(--char)'};opacity:${inc?1:.4}">${inc?'EGP '+f(share):'—'}</span>
+        </div>`;
+      }).join('');
+      return`<div class="tranche-row">
+        <span style="background:var(--good);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;flex-shrink:0">🔒 LOCKED</span>
+        <input class="ed-field md sm-name-input" style="font-weight:500" value="${t.label}"
+          onblur="updateTranche('${sm.id}','${t.id}','label',this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()"/>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+          <span style="font-size:11px;color:var(--char);opacity:.5">EGP</span>
+          <input type="number" class="ed-field sm" value="${t.amount}" min="0"
+            onblur="updateTranche('${sm.id}','${t.id}','amount',this.value)"
+            onkeydown="if(event.key==='Enter')this.blur()"/>
+        </div>
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.09em;color:var(--good);font-weight:600;margin-bottom:5px">Revenue-weighted allocation:</div>
+          ${collChecks}
+        </div>
+        <button class="btn-sm btn-del" onclick="deleteTranche('${sm.id}','${t.id}')">🗑</button>
+      </div>`;
+    }).join('');
+
+    const pendingCollChecks=COLLS.map(col=>{
+      const inc=(sm.pendingColls||[]).includes(col.id);
+      const share=inc?pendingShare(sm,col.id):0;
+      return`<div class="coll-check">
+        <input type="checkbox" ${inc?'checked':''} onchange="togglePendingColl('${sm.id}','${col.id}',this.checked)"/>
+        <span style="width:8px;height:8px;border-radius:50%;background:${col.color};display:inline-block;flex-shrink:0"></span>
+        <span style="flex:1">${col.name}</span>
+        <span class="fm" style="font-size:11px;color:${inc?'var(--warn)':'var(--char)'};opacity:${inc?1:.4}">${inc&&pending>0?'~EGP '+f(share):'—'}</span>
+      </div>`;
+    }).join('');
+
+    const pendingSection=pending>0?`
+      <div class="pending-box">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="background:var(--warn);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px">⏳ PENDING</span>
+            <span class="fm" style="font-size:15px;font-weight:700;color:var(--warn)">EGP ${f(pending)}</span>
+          </div>
+          <button class="btn-sm" style="background:var(--good);color:#fff;border-color:var(--good)"
+            onclick="lockPending('${sm.id}')">🔒 Lock as Spend Record</button>
+        </div>
+        <div style="font-size:11px;color:#7A4E00;margin-bottom:9px;line-height:1.5">
+          This is estimated future spend — it <strong>will reallocate</strong> if revenue changes or collections are added.
+          Once actually spent, click <strong>Lock as Spend Record</strong> to freeze it permanently.
+        </div>
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--warn);letter-spacing:.08em;margin-bottom:6px">Expected benefiting collections:</div>
+        ${pendingCollChecks}
+      </div>`
+    :`<div style="margin:14px 18px;padding:10px 14px;border-radius:8px;background:rgba(26,92,58,.07);border:1px solid rgba(26,92,58,.18);font-size:12px;color:var(--good);font-weight:600;text-align:center">✓ Full budget locked — all spend recorded</div>`;
+
+    return`<div class="sm-card">
+      <div class="sm-head">
+        <div style="flex:1;min-width:180px">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--sage);font-weight:600;margin-bottom:4px">Campaign Name</div>
+          <input class="ed-field xl sm-name-input" style="font-family:'Playfair Display',serif;font-size:16px;font-weight:600;border-color:transparent;background:transparent"
+            value="${sm.name}"
+            onblur="updateSM('${sm.id}','name',this.value)"
+            onkeydown="if(event.key==='Enter')this.blur()"
+            onfocus="this.style.borderColor='var(--sage)'"
+            onblur2="this.style.borderColor='transparent'"/>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:9px;text-transform:uppercase;letter-spacing:.09em;color:var(--sage);font-weight:600;margin-bottom:3px">Total Budget (EGP)</div>
+            <input type="number" class="ed-field md" value="${sm.budget||0}" min="0"
+              onblur="updateSM('${sm.id}','budget',this.value)"
+              onkeydown="if(event.key==='Enter')this.blur()"/>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:9px;color:var(--sage);text-transform:uppercase;letter-spacing:.08em">Locked</div>
+            <div class="fm" style="font-size:14px;font-weight:600;color:var(--good)">EGP ${f(locked)}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:9px;color:var(--sage);text-transform:uppercase;letter-spacing:.08em">Pending</div>
+            <div class="fm" style="font-size:14px;font-weight:600;color:${pending>0?'var(--warn)':'var(--char)'}">EGP ${f(pending)}</div>
+          </div>
+          <button class="btn-sm btn-del" onclick="deleteCampaign('${sm.id}')">🗑 Delete</button>
+        </div>
+      </div>
+      <div style="padding:8px 18px 0">
+        <div class="sm-budget-bar"><div class="sm-budget-locked" style="width:${lockedPct}%"></div></div>
+        <div style="font-size:10px;color:var(--char);opacity:.5;margin-bottom:8px">${lockedPct.toFixed(0)}% of budget locked · EGP ${f(locked)} of EGP ${f(sm.budget||0)}</div>
+      </div>
+      <div style="padding:8px 18px 4px;font-size:12px;font-weight:600;color:var(--ink)">
+        Spend Records <span style="font-size:10px;font-weight:400;color:var(--char);opacity:.5;margin-left:4px">Each record is locked — allocation never changes retroactively</span>
+      </div>
+      ${trancheRows}
+      <div style="padding:10px 18px">
+        <button class="btn-sm btn-add" onclick="addTranche('${sm.id}')">+ Add Spend Record</button>
+      </div>
+      ${pendingSection}
+    </div>`;
+  }).join('');
+  buildSMSummary();
+}
+
+function buildSMSummary(){
+  const wrap=document.getElementById('sm-summary-wrap');
+  if(!wrap||SM.length===0){if(wrap)wrap.innerHTML='';return;}
+  const totSM=SM.reduce((s,sm)=>{
+    const locked=(sm.tranches||[]).reduce((ss,t)=>ss+(t.amount||0),0);
+    const pending=Math.max(0,(sm.budget||0)-locked);
+    return s+locked+pending;
+  },0);
+  const rows=COLLS.map(col=>{
+    const alloc=smAllocForColl(col.id);
+    if(alloc===0)return'';
+    return`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--mist)">
+      <span style="width:8px;height:8px;border-radius:50%;background:${col.color};display:inline-block;flex-shrink:0"></span>
+      <span style="font-size:12px;font-weight:500;flex:1">${col.name}</span>
+      <span class="fm" style="font-size:12px;color:var(--sage)">EGP ${f(alloc)}</span>
+    </div>`;
+  }).join('');
+  wrap.innerHTML=`<div class="card" style="padding:18px">
+    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--sage);font-weight:600;margin-bottom:12px">Total Shared Allocation per Collection</div>
+    <div style="font-size:11px;color:var(--char);opacity:.5;margin-bottom:10px">Total shared spend: EGP ${f(totSM)} across ${SM.length} campaign(s)</div>
+    ${rows||'<div style="font-size:12px;color:var(--char);opacity:.4">No allocations yet — add collections to campaigns above.</div>'}
+  </div>`;
+}
+function refreshAll(){
+  buildKPI(); buildProducts(); buildColls(); buildInv(); buildMkt();
+  buildAI(); buildLeaks(); destroyC(); buildC(); buildEditor(); buildSM();
+}
+
+// ═══════════════════════════ INIT ═══════════════════════════
+window.addEventListener('DOMContentLoaded',async ()=>{
+  applyPinState();
+  await loadData();
+  buildKPI(); buildProducts(); buildColls(); buildInv(); buildMkt();
+  buildAI(); buildLeaks(); buildC(); buildEditor(); buildSM(); initSim(); calcPlan();
+  updateUndoBtn();
+});
+</script>
+</body>
+</html>
