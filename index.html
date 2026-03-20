@@ -6,6 +6,12 @@
 <title>The Edit Society — Operating Dashboard</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+// Enable SheetJS cell styling (required for colors/fonts)
+if(typeof XLSX!=='undefined'&&XLSX.SSF){XLSX.SSF._table=XLSX.SSF._table||{};}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
@@ -208,7 +214,8 @@ body.pinned #pin-btn{color:#f2ead8!important;background:rgba(139,26,26,.4)!impor
     <div class="tbr">
       <span style="font-size:11px;color:var(--char);opacity:.4">cost6 · 15 SKUs loaded</span>
       <label class="ts" title="Dark mode"><input type="checkbox" id="dtog" onchange="toggleDark(this)"/><span class="tsl"></span></label>
-      <button class="bp" onclick="exportCSV()">↓ Export</button>
+      <button id="undo-btn" class="bg" onclick="undo()" disabled style="opacity:.35" title="Nothing to undo">↩ Undo</button>
+      <button class="bp" onclick="exportExcel()">↓ Excel</button>
     </div>
   </div>
 
@@ -345,7 +352,6 @@ body.pinned #pin-btn{color:#f2ead8!important;background:rgba(139,26,26,.4)!impor
         <div class="ssub" style="margin-bottom:0">Edit collections, products, prices, quantities, overheads — changes update all pages instantly and auto-save</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="bg" onclick="resetToDefaults()" style="color:var(--danger);border-color:var(--danger)">↺ Reset to cost6</button>
         <button class="bp" onclick="addCollection()" style="background:var(--blush)">+ New Collection</button>
       </div>
     </div>
@@ -416,6 +422,7 @@ const LS_KEY='tes_dash_v4';
 // ── STATE ──
 let COLLS=deepClone(DEFAULT_COLLS);
 let SM=deepClone(DEFAULT_SM);
+let EDITOR_COLL_ID=null; // active collection in editor (null = first)
 
 // ── SAVE INDICATOR ──
 function showFlash(msg,ok=true){
@@ -479,12 +486,6 @@ function applyData(d){
   SM=d.sm||deepClone(DEFAULT_SM);
 }
 
-function resetToDefaults(){
-  showModal('Reset to cost6 defaults?','All edits including shared campaigns will be lost permanently.',()=>{
-    COLLS=deepClone(DEFAULT_COLLS);SM=deepClone(DEFAULT_SM);
-    saveData();refreshAll();
-  },'Reset','var(--danger)');
-}
 
 // ═══════════════════════════ SHARED MARKETING HELPERS ═══════════════════════════
 // Revenue of a collection (used for revenue-weighted splits)
@@ -553,6 +554,28 @@ function tiersRev(p){
 }
 // planned total from tiers (target)
 function tiersPlanned(p){return (p.tiers||[]).reduce((s,t)=>s+(+(t.qty)||0),0);}
+
+// tiersRev but assuming ALL planned qty is sold
+function tiersRevIfAllSold(p){
+  let sq=0,rev=0;
+  (p.tiers||[]).forEach(t=>{
+    const planned=+(t.qty)||0;
+    const pr=p.price*(1-(+(t.disc)||0));
+    sq+=planned; rev+=pr*planned;
+  });
+  return{sq,rev};
+}
+// calcProd variant where sold = planned qty (all sold scenario)
+function calcProdIfAllSold(p,oh,totCOG){
+  const gv=p.giveaway||0;
+  const{sq:sellQty,rev}=tiersRevIfAllSold(p);
+  const cog=(p.fabric*p.meters*p.qty)+(p.mfg*p.qty)+((p.zipper||0)*p.qty)+(p.sample||0)+(TR*p.qty)+(LB*p.qty);
+  const cogPU=cog/(p.qty||1);
+  const ohPU=totCOG>0?(oh/totCOG)*cogPU:0;
+  const totPnl=rev-cog-(ohPU*p.qty);
+  const marginSale=rev>0?totPnl/rev:0;
+  return{totPnl,rev,marginSale,sellQty};
+}
 function calcProd(p,oh,totCOG){
   const gv=p.giveaway||0;
   const{sq:sellQty,rev}=tiersRev(p);
@@ -569,14 +592,18 @@ function calcProd(p,oh,totCOG){
 function calcColl(col){
   const directOH=Object.values(col.oh).reduce((a,b)=>a+(b||0),0);
   const sharedOH=smAllocForColl(col.id);
-  const dOH=directOH+sharedOH;          // total OH used for product calculations
+  const dOH=directOH+sharedOH;
   let totCOG=0;
   col.products.forEach(p=>{if(!p.name)return;totCOG+=(p.fabric*p.meters*p.qty)+(p.mfg*p.qty)+((p.zipper||0)*p.qty)+(p.sample||0)+(TR*p.qty)+(LB*p.qty);});
   const calcs=col.products.map(p=>p.name?calcProd(p,dOH,totCOG):null);
+  const calcsAll=col.products.map(p=>p.name?calcProdIfAllSold(p,dOH,totCOG):null);
   const totRev=calcs.reduce((a,c)=>a+(c?c.rev:0),0);
   const totPnL=calcs.reduce((a,c)=>a+(c?c.totPnl:0),0);
+  const totRevAll=calcsAll.reduce((a,c)=>a+(c?c.rev:0),0);
+  const totPnLAll=calcsAll.reduce((a,c)=>a+(c?c.totPnl:0),0);
   const totUnits=col.products.reduce((a,p)=>a+(p.qty||0),0);
-  return{directOH,sharedOH,dOH,totCOG,totRev,totPnL,totUnits,margin:totRev>0?totPnL/totRev:0,calcs};
+  return{directOH,sharedOH,dOH,totCOG,totRev,totPnL,totRevAll,totPnLAll,totUnits,
+    margin:totRev>0?totPnL/totRev:0,marginAll:totRevAll>0?totPnLAll/totRevAll:0,calcs,calcsAll};
 }
 function getAll(){return COLLS.map(col=>({col,m:calcColl(col)}));}
 
@@ -639,35 +666,62 @@ function gc(){const dark=document.documentElement.getAttribute('data-theme')==='
 
 function buildC(){
   const all=getAll(),c=gc();
+  const hasGap=all.some(a=>Math.abs(a.m.totRev-a.m.totRevAll)>1);
   const ctx1=document.getElementById('c-rp');
-  if(ctx1){CR.rp=new Chart(ctx1,{type:'bar',data:{labels:COLLS.map(c=>c.name),datasets:[{label:'Revenue',data:all.map(a=>Math.round(a.m.totRev)),backgroundColor:'rgba(139,26,26,.55)',borderRadius:5},{label:'Net Profit',data:all.map(a=>Math.round(a.m.totPnL)),backgroundColor:'rgba(26,92,58,.55)',borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:c.t,font:{family:'DM Sans',size:11}}}},scales:{x:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Sans',size:11}}},y:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Mono',size:10},callback:v=>fK(v)+' EGP'}}}}});}
+  if(ctx1){
+    const datasets=[
+      {label:'Revenue (actual)',data:all.map(a=>Math.round(a.m.totRev)),backgroundColor:'rgba(139,26,26,.55)',borderRadius:5},
+      {label:'Net Profit (actual)',data:all.map(a=>Math.round(a.m.totPnL)),backgroundColor:'rgba(26,92,58,.55)',borderRadius:5},
+    ];
+    if(hasGap){
+      datasets.push({label:'Revenue (all sold)',data:all.map(a=>Math.round(a.m.totRevAll)),backgroundColor:'rgba(139,26,26,.18)',borderRadius:5,borderWidth:1.5,borderColor:'rgba(139,26,26,.5)',borderDash:[4,3]});
+      datasets.push({label:'Profit (all sold)',data:all.map(a=>Math.round(a.m.totPnLAll)),backgroundColor:'rgba(26,92,58,.18)',borderRadius:5,borderWidth:1.5,borderColor:'rgba(26,92,58,.5)'});
+    }
+    CR.rp=new Chart(ctx1,{type:'bar',data:{labels:COLLS.map(c=>c.name),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:c.t,font:{family:'DM Sans',size:11}}}},scales:{x:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Sans',size:11}}},y:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Mono',size:10},callback:v=>fK(v)+' EGP'}}}}});
+  }
   const ctx2=document.getElementById('c-mp');
   if(ctx2){CR.mp=new Chart(ctx2,{type:'doughnut',data:{labels:COLLS.map(c=>c.name),datasets:[{data:all.map(a=>Math.max(0,+(a.m.margin*100).toFixed(1))),backgroundColor:COLLS.map(c=>c.color+'cc'),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:c.t,font:{family:'DM Sans',size:11},padding:9}},tooltip:{callbacks:{label:ctx=>ctx.label+': '+ctx.raw.toFixed(1)+'% margin'}}}}});}
   const ctx3=document.getElementById('c-pp');
   if(ctx3){
-    const ap=all.flatMap(a=>a.m.calcs.map((c,i)=>c?{name:a.col.products[i].name,pnl:c.totPnl,col:a.col}:null).filter(Boolean));
-    CR.pp=new Chart(ctx3,{type:'bar',data:{labels:ap.map(p=>p.name),datasets:[{label:'Net Profit',data:ap.map(p=>Math.round(p.pnl)),backgroundColor:ap.map(p=>p.pnl>=0?'rgba(26,92,58,.65)':'rgba(139,26,26,.65)'),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Sans',size:10},maxRotation:35}},y:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Mono',size:10},callback:v=>fK(v)}}}}});}
+    const ap=all.flatMap(a=>a.m.calcs.map((c,i)=>c?{name:a.col.products[i].name,pnl:c.totPnl,pnlAll:a.m.calcsAll[i]?.totPnl??c.totPnl,col:a.col}:null).filter(Boolean));
+    const datasets3=[
+      {label:'Net Profit (actual)',data:ap.map(p=>Math.round(p.pnl)),backgroundColor:ap.map(p=>p.pnl>=0?'rgba(26,92,58,.65)':'rgba(139,26,26,.65)'),borderRadius:4},
+    ];
+    if(hasGap){
+      datasets3.push({label:'Profit (all sold)',data:ap.map(p=>Math.round(p.pnlAll)),backgroundColor:ap.map(p=>p.pnlAll>=0?'rgba(46,95,163,.35)':'rgba(139,26,26,.25)'),borderRadius:4});
+    }
+    CR.pp=new Chart(ctx3,{type:'bar',data:{labels:ap.map(p=>p.name),datasets:datasets3},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:hasGap,labels:{color:c.t,font:{family:'DM Sans',size:10}}}},scales:{x:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Sans',size:10},maxRotation:35}},y:{grid:{color:c.g},ticks:{color:c.t,font:{family:'DM Mono',size:10},callback:v=>fK(v)}}}}});
+  }
 }
 
 // ═══════════════════════════ KPI ═══════════════════════════
 function buildKPI(){
   const all=getAll();
   const tR=all.reduce((s,a)=>s+a.m.totRev,0),tP=all.reduce((s,a)=>s+a.m.totPnL,0);
+  const tRA=all.reduce((s,a)=>s+a.m.totRevAll,0),tPA=all.reduce((s,a)=>s+a.m.totPnLAll,0);
   const tOH=all.reduce((s,a)=>s+a.m.dOH,0),tCOG=all.reduce((s,a)=>s+a.m.totCOG,0);
-  const tU=all.reduce((s,a)=>s+a.m.totUnits,0),margin=tR>0?tP/tR:0,roas=tOH>0?tR/tOH:0;
+  const tU=all.reduce((s,a)=>s+a.m.totUnits,0),margin=tR>0?tP/tR:0,marginA=tRA>0?tPA/tRA:0,roas=tOH>0?tR/tOH:0;
+  const hasGap=Math.abs(tR-tRA)>1; // any unsold stock
   const apf=all.flatMap(a=>a.m.calcs.map((c,i)=>c?{...c,name:a.col.products[i].name,col:a.col}:null).filter(Boolean));
   const best=apf.reduce((a,b)=>a.totPnl>b.totPnl?a:b);
   const worst=apf.reduce((a,b)=>a.marginSale<b.marginSale?a:b);
+
+  // Dual-value helper: renders actual + if-all-sold sub-line when there's a gap
+  const dualSub=(actual,target,fmt)=>hasGap
+    ?`<div style="margin-top:4px;font-size:10px;color:var(--sage);font-family:'DM Mono',monospace">▲ ${fmt(target)} if all sold</div>`
+    :'';
+
   document.getElementById('kpi-grid').innerHTML=[
-    {l:'Total Revenue',v:'EGP '+fK(tR),s:f(tR)+' EGP',bd:null},
-    {l:'Net Profit',v:'EGP '+fK(tP),s:fp(margin)+' net margin',bd:fp(margin),bc:mb(margin)},
-    {l:'Total Overheads',v:'EGP '+fK(tOH),s:'Ads + marketing + shoots',bd:null},
-    {l:'ROAS',v:roas.toFixed(1)+'x',s:'Revenue per EGP spent',bd:roas>=3?'Healthy':roas>=2?'Marginal':'Low',bc:roas>=3?'bg-good':roas>=2?'bg-warn':'bg-danger'},
-    {l:'Total COG',v:'EGP '+fK(tCOG),s:'All production costs',bd:null},
-    {l:'Total Units',v:tU,s:'15 SKUs · 3 collections',bd:null},
-    {l:'Top Performer',v:best.name,s:'EGP '+f(best.totPnl)+' profit',bd:fp(best.marginSale),bc:'bg-good'},
-    {l:'Needs Review',v:worst.name,s:worst.col.name,bd:fp(worst.marginSale)+' margin',bc:mb(worst.marginSale)},
-  ].map(k=>`<div class="kc"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks">${k.s}</div>${k.bd?`<span class="kb ${k.bc}">${k.bd}</span>`:''}</div>`).join('');
+    {l:'Total Revenue',v:'EGP '+fK(tR),s:f(tR)+' EGP',bd:null,extra:dualSub(tR,tRA,v=>'EGP '+fK(v))},
+    {l:'Net Profit',v:'EGP '+fK(tP),s:fp(margin)+' net margin',bd:fp(margin),bc:mb(margin),extra:dualSub(tP,tPA,v=>'EGP '+fK(v)+' · '+fp(marginA))},
+    {l:'Total Overheads',v:'EGP '+fK(tOH),s:'Ads + marketing + shoots',bd:null,extra:''},
+    {l:'ROAS',v:roas.toFixed(1)+'x',s:'Revenue per EGP spent',bd:roas>=3?'Healthy':roas>=2?'Marginal':'Low',bc:roas>=3?'bg-good':roas>=2?'bg-warn':'bg-danger',extra:''},
+    {l:'Total COG',v:'EGP '+fK(tCOG),s:'All production costs',bd:null,extra:''},
+    {l:'Total Units',v:tU,s:`${COLLS.length} collections · ${all.reduce((s,a)=>s+a.col.products.filter(p=>p.name).length,0)} SKUs`,bd:null,extra:''},
+    {l:'Top Performer',v:best.name,s:'EGP '+f(best.totPnl)+' profit',bd:fp(best.marginSale),bc:'bg-good',extra:''},
+    {l:'Needs Review',v:worst.name,s:worst.col.name,bd:fp(worst.marginSale)+' margin',bc:mb(worst.marginSale),extra:''},
+  ].map(k=>`<div class="kc"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks">${k.s}</div>${k.bd?`<span class="kb ${k.bc}">${k.bd}</span>`:''}${k.extra||''}</div>`).join('');
+
   document.getElementById('top-card').innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px"><span style="font-size:18px">🏆</span><div style="font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--good);font-weight:600">Top Performer</div></div><div class="fd" style="font-size:17px;margin-bottom:3px">${best.name}</div><div style="font-size:11px;color:var(--char);opacity:.6;margin-bottom:12px">${best.col.name}</div><div style="display:flex;gap:20px"><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Net Profit</div><div class="fm" style="font-size:14px;font-weight:500;color:var(--good)">EGP ${f(best.totPnl)}</div></div><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Margin</div><div class="fm" style="font-size:14px;font-weight:500;color:var(--good)">${fp(best.marginSale)}</div></div><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Revenue</div><div class="fm" style="font-size:14px;font-weight:500">EGP ${fK(best.rev)}</div></div></div>`;
   document.getElementById('worst-card').innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px"><span style="font-size:18px">⚠️</span><div style="font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--warn);font-weight:600">Needs Attention</div></div><div class="fd" style="font-size:17px;margin-bottom:3px">${worst.name}</div><div style="font-size:11px;color:var(--char);opacity:.6;margin-bottom:12px">${worst.col.name}</div><div style="display:flex;gap:20px"><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Net Profit</div><div class="fm" style="font-size:14px;font-weight:500;color:${worst.totPnl>=0?'var(--good)':'var(--danger)'}">EGP ${f(worst.totPnl)}</div></div><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Margin</div><div class="fm" style="font-size:14px;font-weight:500;color:${mc(worst.marginSale)}">${fp(worst.marginSale)}</div></div><div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Revenue</div><div class="fm" style="font-size:14px;font-weight:500">EGP ${fK(worst.rev)}</div></div></div>`;
 }
@@ -676,7 +730,19 @@ function buildKPI(){
 function buildProducts(){
   const all=getAll();
   document.getElementById('prod-tabs').innerHTML=COLLS.map((c,i)=>`<div class="tab ${i===0?'active':''}" onclick="showPT('${c.id}',this)">${c.name}</div>`).join('');
-  document.getElementById('prod-wrap').innerHTML=all.map(a=>`
+  document.getElementById('prod-wrap').innerHTML=all.map(a=>{
+    // figure out if any product in this collection has unsold stock
+    const collHasGap=a.col.products.some((p,i)=>{
+      const c=a.m.calcs[i];const ca=a.m.calcsAll[i];
+      return c&&ca&&Math.abs(c.rev-ca.rev)>1;
+    });
+    const prods=a.col.products.filter(p=>p.name);
+    // map calcs aligned to filtered products
+    const filteredCalcs=prods.map(p=>{
+      const pi=a.col.products.indexOf(p);
+      return{c:a.m.calcs[pi],ca:a.m.calcsAll[pi]};
+    });
+    return`
     <div id="pt-${a.col.id}" class="card" style="overflow:hidden;${a.col.id!=='drop1'?'display:none':''}">
       <div style="padding:11px 17px;border-bottom:1px solid var(--mist);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <span class="cpill ${a.col.pill}">${a.col.name}</span>
@@ -684,10 +750,18 @@ function buildProducts(){
       </div>
       <div style="overflow-x:auto">
         <table class="dt">
-          <thead><tr><th>Product</th><th>Qty</th><th>COG Total</th><th>COG/Unit</th><th>OH/Unit</th><th>Total Cost/Unit</th><th>Pricing Tiers</th><th>Avg Sell</th><th>Revenue</th><th>Net P&L</th><th>Margin</th></tr></thead>
-          <tbody>${a.col.products.filter(p=>p.name).map((p,i)=>{
-            const c=a.m.calcs[i];if(!c)return'';
+          <thead>
+            <tr>
+              <th>Product</th><th>Qty</th><th>COG Total</th><th>COG/Unit</th><th>OH/Unit</th><th>Total Cost/Unit</th><th>Pricing Tiers</th><th>Avg Sell</th>
+              <th>Revenue</th><th>Net P&L</th><th>Margin</th>
+              ${collHasGap?`<th style="color:var(--sage);border-left:2px solid var(--mist)">Rev (all sold)</th><th style="color:var(--sage)">P&L (all sold)</th><th style="color:var(--sage)">Margin (all sold)</th>`:''}
+            </tr>
+          </thead>
+          <tbody>${filteredCalcs.map(({c,ca},i)=>{
+            if(!c)return'';
+            const p=prods[i];
             const ts=(p.tiers||[]).map(t=>`${t.qty}u@${t.disc===0?'full':'-'+(t.disc*100).toFixed(0)+'% ('+f(p.price*(1-t.disc))+')'}`).join(' · ');
+            const hasGap2=ca&&Math.abs(c.rev-ca.rev)>1;
             return`<tr>
               <td><div style="font-weight:500">${p.name}</div><div style="font-size:10px;color:var(--gold);margin-top:1px">Price: EGP ${f(p.price)}</div></td>
               <td class="num">${p.qty}</td>
@@ -700,6 +774,10 @@ function buildProducts(){
               <td class="num">EGP ${fK(c.rev)}</td>
               <td class="num" style="color:${c.totPnl>=0?'var(--good)':'var(--danger)'};font-weight:600">EGP ${f(c.totPnl)}</td>
               <td><span class="kb ${mb(c.marginSale)}">${fp(c.marginSale)}</span></td>
+              ${collHasGap?`
+              <td class="num" style="color:var(--sage);border-left:2px solid var(--mist)">${hasGap2?'EGP '+fK(ca.rev):'—'}</td>
+              <td class="num" style="color:${ca&&ca.totPnl>=0?'var(--sage)':'var(--danger)'};font-weight:600">${hasGap2?'EGP '+f(ca.totPnl):'—'}</td>
+              <td>${hasGap2?`<span class="kb" style="background:rgba(46,95,163,.12);color:var(--sage)">${fp(ca.marginSale)}</span>`:'—'}</td>`:''}
             </tr>`;
           }).join('')}</tbody>
           <tfoot><tr style="background:var(--mist)">
@@ -707,10 +785,18 @@ function buildProducts(){
             <td class="num" style="font-weight:700">EGP ${fK(a.m.totRev)}</td>
             <td class="num" style="font-weight:700;color:${a.m.totPnL>=0?'var(--good)':'var(--danger)'}">EGP ${f(a.m.totPnL)}</td>
             <td><span class="kb ${mb(a.m.margin)}">${fp(a.m.margin)}</span></td>
+            ${collHasGap?`
+            <td class="num" style="font-weight:700;color:var(--sage);border-left:2px solid rgba(0,0,0,.08)">EGP ${fK(a.m.totRevAll)}</td>
+            <td class="num" style="font-weight:700;color:${a.m.totPnLAll>=0?'var(--sage)':'var(--danger)'}">EGP ${f(a.m.totPnLAll)}</td>
+            <td><span class="kb" style="background:rgba(46,95,163,.15);color:var(--sage)">${fp(a.m.marginAll)}</span></td>`:''}
           </tr></tfoot>
         </table>
       </div>
-    </div>`).join('');
+      ${collHasGap?`<div style="padding:8px 14px;font-size:10.5px;color:var(--sage);background:rgba(46,95,163,.04);border-top:1px solid rgba(46,95,163,.12)">
+        ◈ Blue columns show what revenue, profit and margin would be <strong>if every planned unit sold at its tier price</strong> — use this to gauge unsold stock impact.
+      </div>`:''}
+    </div>`;
+  }).join('');
 }
 function showPT(id,el){document.querySelectorAll('[id^="pt-"]').forEach(e=>e.style.display='none');document.querySelectorAll('#prod-tabs .tab').forEach(t=>t.classList.remove('active'));document.getElementById('pt-'+id).style.display='block';el.classList.add('active');}
 
@@ -720,15 +806,29 @@ function buildColls(){
   document.getElementById('coll-wrap').innerHTML=all.map(a=>{
     const ps=a.col.products.filter(p=>p.name);
     const cs=a.m.calcs.filter(Boolean);
+    const cas=a.m.calcsAll.filter(Boolean);
+    const hasGap=Math.abs(a.m.totRev-a.m.totRevAll)>1;
     const sorted=[...cs].map((c,i)=>({...c,name:ps[i]?.name})).sort((x,y)=>y.totPnl-x.totPnl);
     const best=sorted[0],worst=sorted[sorted.length-1];
     return`<div class="card" style="margin-bottom:16px;overflow:hidden">
       <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:1px solid var(--mist);background:${a.col.color}0d">
         <div style="display:flex;align-items:center;gap:10px"><span style="width:9px;height:9px;border-radius:50%;background:${a.col.color};display:inline-block"></span><div class="fd" style="font-size:18px">${a.col.name}</div></div>
-        <div style="display:flex;gap:24px;text-align:right;flex-wrap:wrap">
-          <div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Revenue</div><div class="fm" style="font-size:13.5px">EGP ${fK(a.m.totRev)}</div></div>
-          <div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Net P&L</div><div class="fm" style="font-size:13.5px;color:${a.m.totPnL>=0?'var(--good)':'var(--danger)'}">EGP ${fK(a.m.totPnL)}</div></div>
-          <div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Margin</div><div><span class="kb ${mb(a.m.margin)}">${fp(a.m.margin)}</span></div></div>
+        <div style="display:flex;gap:20px;text-align:right;flex-wrap:wrap;align-items:flex-start">
+          <div>
+            <div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Revenue</div>
+            <div class="fm" style="font-size:13.5px">EGP ${fK(a.m.totRev)}</div>
+            ${hasGap?`<div style="font-size:10px;color:var(--sage);margin-top:1px">▲ EGP ${fK(a.m.totRevAll)} full</div>`:''}
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Net P&L</div>
+            <div class="fm" style="font-size:13.5px;color:${a.m.totPnL>=0?'var(--good)':'var(--danger)'}">EGP ${fK(a.m.totPnL)}</div>
+            ${hasGap?`<div style="font-size:10px;color:var(--sage);margin-top:1px">▲ EGP ${fK(a.m.totPnLAll)} full</div>`:''}
+          </div>
+          <div>
+            <div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Margin</div>
+            <span class="kb ${mb(a.m.margin)}">${fp(a.m.margin)}</span>
+            ${hasGap?`<div style="margin-top:3px"><span class="kb" style="background:rgba(46,95,163,.12);color:var(--sage)">${fp(a.m.marginAll)} full</span></div>`:''}
+          </div>
           <div><div style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.09em">Overheads</div><div class="fm" style="font-size:13.5px;color:var(--warn)">EGP ${fK(a.m.dOH)}</div></div>
         </div>
       </div>
@@ -739,7 +839,24 @@ function buildColls(){
         ${worst?`<span style="font-size:10.5px;color:var(--warn)">⚑ ${worst.name} (${fp(worst.marginSale)} margin)</span>`:''}
       </div>
       <div style="padding:14px 20px">
-        ${cs.map((c,i)=>{const share=a.m.totRev>0?c.rev/a.m.totRev:0;return`<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px"><div style="width:145px;font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ps[i]?.name}</div><div style="flex:1"><div class="pb"><div class="pf ${mb(c.marginSale).replace('bg-','p')}" style="width:${Math.max(2,Math.min(100,share*100))}%"></div></div></div><div class="fm" style="font-size:10px;width:42px;text-align:right;color:var(--char);opacity:.55">${(share*100).toFixed(0)}%</div><div class="fm" style="font-size:11px;width:105px;text-align:right;color:${c.totPnl>=0?'var(--good)':'var(--danger)'}">EGP ${f(c.totPnl)}</div></div>`;}).join('')}
+        ${cs.map((c,i)=>{
+          const ca=cas[i];
+          const share=a.m.totRev>0?c.rev/a.m.totRev:0;
+          const prodHasGap=ca&&Math.abs(c.rev-ca.rev)>1;
+          return`<div style="margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:2px">
+              <div style="width:145px;font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ps[i]?.name}</div>
+              <div style="flex:1"><div class="pb"><div class="pf ${mb(c.marginSale).replace('bg-','p')}" style="width:${Math.max(2,Math.min(100,share*100))}%"></div></div></div>
+              <div class="fm" style="font-size:10px;width:42px;text-align:right;color:var(--char);opacity:.55">${(share*100).toFixed(0)}%</div>
+              <div class="fm" style="font-size:11px;width:105px;text-align:right;color:${c.totPnl>=0?'var(--good)':'var(--danger)'}">EGP ${f(c.totPnl)}</div>
+            </div>
+            ${prodHasGap?`<div style="display:flex;justify-content:flex-end;gap:5px;align-items:center">
+              <span style="font-size:9.5px;color:var(--sage);opacity:.8">if all sold:</span>
+              <span class="fm" style="font-size:10.5px;color:var(--sage);font-weight:600">EGP ${f(ca.totPnl)}</span>
+              <span class="kb" style="background:rgba(46,95,163,.10);color:var(--sage);font-size:9px">${fp(ca.marginSale)}</span>
+            </div>`:''}
+          </div>`;
+        }).join('')}
       </div>
     </div>`;
   }).join('');
@@ -1005,11 +1122,390 @@ function buildLeaks(){
 }
 
 // ═══════════════════════════ EXPORT ═══════════════════════════
-function exportCSV(){
+// ═══════════════════════════ UNDO STACK ═══════════════════════════
+const UNDO_STACK=[];
+const UNDO_MAX=20;
+function pushUndo(){
+  UNDO_STACK.push({colls:deepClone(COLLS),sm:deepClone(SM)});
+  if(UNDO_STACK.length>UNDO_MAX)UNDO_STACK.shift();
+  updateUndoBtn();
+}
+function undo(){
+  if(UNDO_STACK.length===0)return;
+  const prev=UNDO_STACK.pop();
+  COLLS=prev.colls; SM=prev.sm;
+  saveData(); refreshAll(); updateUndoBtn();
+  showFlash('↩ Undone');
+}
+function updateUndoBtn(){
+  const btn=document.getElementById('undo-btn');
+  if(!btn)return;
+  btn.disabled=UNDO_STACK.length===0;
+  btn.style.opacity=UNDO_STACK.length===0?'0.35':'1';
+  btn.title=UNDO_STACK.length===0?'Nothing to undo':`Undo (${UNDO_STACK.length} step${UNDO_STACK.length>1?'s':''} available)`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT — pixel-perfect replica of Cost_Breakdown_v3.xlsx
+// Uses ExcelJS (free, full styling support) with live dashboard data
+// ═══════════════════════════════════════════════════════════════
+async function exportExcel(){
+  if(typeof ExcelJS==='undefined'){showFlash('⚠ Export library loading, try again in a moment',false);return;}
+  showFlash('⏳ Building Excel file…',true);
+
   const all=getAll();
-  let csv='Collection,Product,Qty,COG Total,COG/Unit,OH/Unit,Avg Sell,Revenue,Net P&L,Margin%\n';
-  all.forEach(a=>a.col.products.filter(p=>p.name).forEach((p,i)=>{const c=a.m.calcs[i];if(!c)return;csv+=`"${a.col.name}","${p.name}",${p.qty},${Math.round(c.cog)},${Math.round(c.cogPU)},${Math.round(c.ohPU)},${Math.round(c.avgSP)},${Math.round(c.rev)},${Math.round(c.totPnl)},${(c.marginSale*100).toFixed(1)}\n`;}));
-  const blob=new Blob([csv],{type:'text/csv'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='TES-Dashboard-cost6.csv';a.click();URL.revokeObjectURL(url);
+  const d=new Date();
+  const dateStr=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  // ── Colour constants (exact from Cost_Breakdown_v3.xlsx) ──
+  const BROWN='FF8B5E3C', NAVY='FF1F3864', BL='FFBDD7EE', YEL='FFFFFF99',
+        LB2='FFDEEAF1', F7='FFF7F7F7', SAGE2='FF2E5FA3', CA='FFC9A84C',
+        PG='FFE2EFDA', PF='FF375623', LR='FFFCE4D6', LF='FFC00000',
+        BLU='FF0000FF', GRN='FF006400', GRY='FF808080', F5='FFF5F5F5',
+        WH='FFFFFFFF', BK='FF000000';
+
+  // ── Style helpers ──
+  const fill=c=>({type:'pattern',pattern:'solid',fgColor:{argb:c}});
+  const font=(bold,argb,sz,italic)=>({name:'Calibri',bold:!!bold,color:{argb:argb||BK},size:sz||10,italic:!!italic});
+  const al=(h,v,wrap)=>({horizontal:h||'center',vertical:v||'middle',wrapText:!!wrap});
+  const border=()=>({top:{style:'thin',color:{argb:'FFD9D9D9'}},bottom:{style:'thin',color:{argb:'FFD9D9D9'}},left:{style:'thin',color:{argb:'FFD9D9D9'}},right:{style:'thin',color:{argb:'FFD9D9D9'}}});
+  const thickBorder=()=>({top:{style:'medium',color:{argb:BROWN}},bottom:{style:'medium',color:{argb:BROWN}},left:{style:'medium',color:{argb:BROWN}},right:{style:'medium',color:{argb:BROWN}}});
+
+  function style(cell, fillArgb, fnt, align, numFmt){
+    if(fillArgb) cell.fill=fill(fillArgb);
+    if(fnt) cell.font=fnt;
+    if(align) cell.alignment=align;
+    if(numFmt) cell.numFmt=numFmt;
+    cell.border=border();
+  }
+
+  function hdr(ws, r, c, val, fillArgb, fnt, align, numFmt){
+    const cell=ws.getCell(r,c);
+    cell.value=val;
+    style(cell,fillArgb,fnt,align,numFmt);
+    return cell;
+  }
+
+  const wb=new ExcelJS.Workbook();
+  wb.creator='The Edit Society Dashboard';
+  wb.created=new Date();
+
+  // ══════════════════════════════════════════════
+  // COLLECTION SHEET
+  // ══════════════════════════════════════════════
+  function makeCollSheet(a){
+    const coll=a.col, m=a.m;
+    const prods=coll.products.filter(p=>p.name);
+    const n=prods.length;
+    const ws=wb.addWorksheet(coll.name,{views:[{state:'frozen',ySplit:5,showGridLines:false}]});
+    ws.properties.defaultRowHeight=22;
+
+    // Column widths
+    [4.03,20.04,9.95,6.99,11.03,9.95,9.95,6.05,11.03,6.99,
+     13.05,11.03,11.03,11.97,9.95,11.03,9.95,9.95,
+     11.97,13.05,9.01,11.97,13.99,11.97].forEach((w,i)=>{
+      ws.getColumn(i+1).width=w;
+    });
+
+    // R1: Title
+    ws.mergeCells(1,1,1,24);
+    const t1=ws.getCell(1,1);
+    t1.value=`COST BREAKDOWN  —  ${coll.name.toUpperCase()}`;
+    style(t1,BROWN,font(1,'FFFFFFFF',15),al('left','middle'));
+    ws.getRow(1).height=33.95;
+
+    // R2: Instructions
+    ws.mergeCells(2,1,2,24);
+    const t2=ws.getCell(2,1);
+    t2.value='BLUE CELLS = type here   |   GREEN ROW = profitable   |   RED ROW = selling at a loss (intentional)';
+    style(t2,F5,font(0,'FF595959',9),al('left','middle',true));
+    ws.getRow(2).height=15.95;
+
+    // R3: Overheads bar
+    ws.mergeCells(3,1,3,2);
+    const oh3=ws.getCell(3,1);
+    oh3.value='OVERHEADS THIS COLLECTION';
+    style(oh3,NAVY,font(1,'FFFFFFFF',10),al('left','middle'));
+    ws.getCell(3,2).fill=fill(NAVY);
+
+    const ohDef=[['Ads (EGP)',coll.oh.ads||0,3,4],['Marketing (EGP)',coll.oh.marketing||0,5,6],['Photoshoot (EGP)',coll.oh.photoshoot||0,7,8]];
+    ohDef.forEach(([lbl,val,lc,vc])=>{
+      const lCell=ws.getCell(3,lc); lCell.value=lbl; style(lCell,BL,font(0,NAVY,10),al('center','middle'));
+      const vCell=ws.getCell(3,vc); vCell.value=val; style(vCell,YEL,font(1,BLU,10),al('right','middle'),'#,##0');
+    });
+    ws.mergeCells(3,9,3,10);
+    const ohLbl=ws.getCell(3,9); ohLbl.value='Total Overheads'; style(ohLbl,BL,font(0,NAVY,10),al('center','middle'));
+    ws.getCell(3,10).fill=fill(BL);
+    const ohTot=Object.values(coll.oh).reduce((s,v)=>s+(v||0),0);
+    const ohVal=ws.getCell(3,11); ohVal.value=ohTot; style(ohVal,LB2,font(1,NAVY,11),al('right','middle'),'#,##0');
+    ws.getRow(3).height=26.1;
+
+    // R4: Section dividers
+    [[1,10,'INPUTS  —  fill in blue cells',BROWN],[11,14,'COST (auto)',SAGE2],
+     [15,16,'PRICING (auto)',SAGE2],[17,18,'MARGINS (auto)',SAGE2],
+     [19,21,'PROFIT / LOSS (auto)',SAGE2],[22,24,'RECOVERY INFO (auto)',SAGE2]]
+    .forEach(([c1,c2,lbl,col])=>{
+      ws.mergeCells(4,c1,4,c2);
+      const cell=ws.getCell(4,c1); cell.value=lbl; style(cell,col,font(1,'FFFFFFFF',8),al('center','middle'));
+      for(let c=c1+1;c<=c2;c++){ws.getCell(4,c).fill=fill(col);}
+    });
+    ws.getRow(4).height=18;
+
+    // R5: Column headers
+    const hdrs=['#','Product Name','Fabric\nEGP/m','m /\npiece','Mfg +\nSalia','Zipper /\nButton','Sample\n(EGP)','Qty','Target\nPrice','Sale\n%',
+      'Total\nCOG','COG /\npiece','Overhead\n/ piece','Total Cost\n/ piece','Sale\nPrice','Break-even\nPrice',
+      'Margin\nFull Price','Margin\nAfter Sale','Profit/Loss\nper unit','Total\nProfit/Loss','STATUS',
+      'Price for\n20% Margin','Units to\nRecover Loss','Loss as %\nof Sale Price'];
+    hdrs.forEach((h,i)=>{
+      const isInput=i<10;
+      const cell=ws.getCell(5,i+1); cell.value=h;
+      style(cell,isInput?BROWN:BL,font(1,isInput?'FFFFFFFF':NAVY,8),al('center','middle',true));
+    });
+    ws.getRow(5).height=36;
+
+    // Data rows
+    prods.forEach((p,pi)=>{
+      const ci=m.calcs[pi]; if(!ci) return;
+      const r=6+pi;
+      const bg=pi%2===0?WH:F7;
+      const disc=(p.tiers[0]?.disc||0);
+      const salePr=p.price*(1-disc);
+      const mFull=p.price>0?(p.price-ci.costPU)/p.price:0;
+      const mSale=salePr>0?(salePr-ci.costPU)/salePr:0;
+      const pnlPU=salePr-ci.costPU;
+      const totPnl=ci.totPnl;
+      const prof=totPnl>=0;
+      const price20=ci.costPU*1.25;
+      const unitsRec=!prof&&salePr>0?Math.ceil(Math.abs(totPnl)/salePr):null;
+      const lossPct=!prof&&salePr>0?Math.abs(pnlPU)/salePr:null;
+
+      // A: row num
+      const a1=ws.getCell(r,1); a1.value=pi+1; style(a1,bg,font(0,GRY,9),al('center','middle'));
+      // B: name
+      const b=ws.getCell(r,2); b.value=p.name; style(b,bg,font(1,BK,10),al('left','middle'));
+      // C-J: inputs
+      [[3,p.fabric,'#,##0',false],[4,p.meters,'0.0#',false],[5,p.mfg,'#,##0',false],
+       [6,p.zipper||0,'#,##0',false],[7,p.sample||0,'#,##0',false],[8,p.qty,'#,##0',true],
+       [9,p.price,'#,##0',true],[10,disc,'0%',false]]
+      .forEach(([c,v,fmt,bold])=>{const cell=ws.getCell(r,c);cell.value=v;style(cell,bg,font(bold,BLU,10),al('right','middle'),fmt);});
+      // K-N: costs
+      [[11,Math.round(ci.cog),'#,##0',GRN===GRN?BK:GRN],[12,Math.round(ci.cogPU),'#,##0',BK],
+       [13,Math.round(ci.ohPU),'#,##0',GRN],[14,Math.round(ci.costPU),'#,##0',BK]]
+      .forEach(([c,v,fmt,fg])=>{const cell=ws.getCell(r,c);cell.value=v;style(cell,bg,font(0,fg,10),al('right','middle'),fmt);});
+      // O: sale price
+      const oCell=ws.getCell(r,15); oCell.value=Math.round(salePr); style(oCell,bg,font(0,BK,10),al('right','middle'),'#,##0');
+      // P: breakeven (light blue)
+      const pCell=ws.getCell(r,16); pCell.value=Math.round(ci.costPU); style(pCell,LB2,font(0,BK,10),al('right','middle'),'#,##0');
+      // Q-R: margins
+      [[17,mFull],[18,mSale]].forEach(([c,v])=>{
+        const cell=ws.getCell(r,c); cell.value=v;
+        const fg=v>=0.35?PF:(v<0?LF:'FF7A4E00');
+        style(cell,bg,font(1,fg,10),al('right','middle'),'0.0%');
+      });
+      // S: pnl/unit
+      const sCell=ws.getCell(r,19); sCell.value=Math.round(pnlPU);
+      style(sCell,bg,font(1,pnlPU>=0?PF:LF,10),al('right','middle'),'#,##0;(#,##0)');
+      // T: total pnl (coloured bg)
+      const tCell=ws.getCell(r,20); tCell.value=Math.round(totPnl);
+      style(tCell,prof?PG:LR,font(1,prof?PF:LF,10),al('right','middle'),'#,##0;(#,##0)');
+      // U: STATUS
+      const uCell=ws.getCell(r,21); uCell.value=prof?'PROFIT':'LOSS';
+      style(uCell,prof?PG:LR,font(1,prof?PF:LF,10),al('center','middle'));
+      // V: price for 20%
+      const vCell=ws.getCell(r,22); vCell.value=Math.round(price20);
+      style(vCell,LB2,font(0,BK,10),al('right','middle'),'#,##0');
+      // W: units to recover
+      const wCell=ws.getCell(r,23); wCell.value=unitsRec!==null?unitsRec:'None';
+      style(wCell,bg,font(0,BK,10),al('center','middle'),unitsRec?'0.0':'');
+      // X: loss %
+      const xCell=ws.getCell(r,24); xCell.value=lossPct!==null?lossPct:'';
+      style(xCell,bg,font(0,BK,10),al('right','middle'),lossPct?'0.0%':'');
+      ws.getRow(r).height=21.95;
+    });
+
+    // TOTALS ROW
+    const tr=6+n;
+    ws.mergeCells(tr,1,tr,7);
+    ws.getCell(tr,1).value='TOTALS';
+    style(ws.getCell(tr,1),BROWN,font(1,'FFFFFFFF',11),al('left','middle'));
+    for(let c=2;c<=7;c++) ws.getCell(tr,c).fill=fill(BROWN);
+    const qTot=prods.reduce((s,p)=>s+p.qty,0);
+    ws.getCell(tr,8).value=qTot; style(ws.getCell(tr,8),BROWN,font(1,'FFFFFFFF',10),al('right','middle'),'#,##0');
+    for(let c=9;c<=10;c++){ws.getCell(tr,c).fill=fill(BROWN);}
+    ws.getCell(tr,11).value=Math.round(m.totCOG); style(ws.getCell(tr,11),BROWN,font(1,'FFFFFFFF',10),al('right','middle'),'#,##0');
+    for(let c=12;c<=19;c++){ws.getCell(tr,c).fill=fill(BROWN);}
+    ws.getCell(tr,20).value=Math.round(m.totPnL); style(ws.getCell(tr,20),BROWN,font(1,'FFFFFFFF',10),al('right','middle'),'#,##0;(#,##0)');
+    for(let c=21;c<=24;c++){ws.getCell(tr,c).fill=fill(BROWN);}
+    ws.getRow(tr).height=24;
+
+    // SPACER
+    ws.getRow(tr+1).height=9.95;
+
+    // SUMMARY BOX
+    const sb=tr+2;
+    ws.mergeCells(sb,1,sb,24);
+    ws.getCell(sb,1).value='COLLECTION SUMMARY';
+    style(ws.getCell(sb,1),NAVY,font(1,'FFFFFFFF',12),al('left','middle'));
+    for(let c=2;c<=24;c++) ws.getCell(sb,c).fill=fill(NAVY);
+    ws.getRow(sb).height=24;
+
+    // Summary labels
+    const sl=sb+1;
+    const lbDefs=[[1,3,'Total Units'],[4,3,'Total COG'],[7,3,'Total Overheads'],[10,3,'Total Revenue'],[13,3,'Total Profit / Loss'],[16,3,'Overall Margin %'],[19,3,'Products at LOSS'],[22,3,'Products PROFITABLE']];
+    lbDefs.forEach(([c,span,lbl])=>{
+      ws.mergeCells(sl,c,sl,c+span-1);
+      ws.getCell(sl,c).value=lbl;
+      style(ws.getCell(sl,c),BL,font(1,NAVY,8),al('center','middle'));
+      for(let i=1;i<span;i++) ws.getCell(sl,c+i).fill=fill(BL);
+    });
+    ws.getRow(sl).height=18;
+
+    // Summary values
+    const sv=sb+2;
+    const totRev=m.totRev, totPnL2=m.totPnL;
+    const marg=totRev>0?totPnL2/totRev:0;
+    const nLoss=m.calcs.filter(c=>c&&c.totPnl<0).length;
+    const nProf=m.calcs.filter(c=>c&&c.totPnl>=0).length;
+    [[1,3,qTot,'#,##0',LB2,NAVY],[4,3,Math.round(m.totCOG),'#,##0',LB2,NAVY],
+     [7,3,Math.round(ohTot),'#,##0',LB2,NAVY],[10,3,Math.round(totRev),'#,##0',PG,PF],
+     [13,3,Math.round(totPnL2),'#,##0;(#,##0)',totPnL2>=0?PG:LR,totPnL2>=0?PF:LF],
+     [16,3,marg,'0.0%',LB2,NAVY],[19,3,nLoss,'#,##0',LR,LF],[22,3,nProf,'#,##0',PG,PF]]
+    .forEach(([c,span,val,fmt,bg,fg])=>{
+      ws.mergeCells(sv,c,sv,c+span-1);
+      ws.getCell(sv,c).value=val;
+      style(ws.getCell(sv,c),bg,font(1,fg,14),al('center','middle'),fmt);
+      for(let i=1;i<span;i++) ws.getCell(sv,c+i).fill=fill(bg);
+    });
+    ws.getRow(sv).height=36;
+  }
+
+  // ══════════════════════════════════════════════
+  // DASHBOARD SHEET
+  // ══════════════════════════════════════════════
+  const dash=wb.addWorksheet('Dashboard',{views:[{showGridLines:false}]});
+  [2,26,20,18,18,18,18,18,2].forEach((w,i)=>dash.getColumn(i+1).width=w);
+
+  // Title
+  dash.mergeCells(1,2,2,8);
+  dash.getCell(1,2).value='COST BREAKDOWN  -  MASTER DASHBOARD';
+  style(dash.getCell(1,2),NAVY,font(1,'FFFFFFFF',16),al('left','middle'));
+  for(let c=3;c<=8;c++) dash.getCell(1,c).fill=fill(NAVY);
+  for(let c=2;c<=8;c++) dash.getCell(2,c).fill=fill(NAVY);
+  dash.getRow(1).height=30; dash.getRow(2).height=15; dash.getRow(3).height=12;
+
+  // Registry header
+  dash.mergeCells(4,2,4,8);
+  dash.getCell(4,2).value='COLLECTION REGISTRY';
+  style(dash.getCell(4,2),CA,font(1,'FFFFFFFF',11),al('left','middle'));
+  for(let c=3;c<=8;c++) dash.getCell(4,c).fill=fill(CA);
+  dash.getRow(4).height=22;
+
+  // Headers row 5
+  [['#',2],['Collection',3],['Revenue (EGP)',4],['Total Cost (EGP)',5],['Net Profit (EGP)',6],['Margin %',7],['Units',8]].forEach(([h,c])=>{
+    dash.getCell(5,c).value=h; style(dash.getCell(5,c),NAVY,font(1,'FFFFFFFF',10),al('center','middle'));
+  });
+  dash.getRow(5).height=22;
+
+  // Collection rows
+  all.forEach((a,i)=>{
+    const r=6+i; const bg=i%2===0?F7:WH;
+    dash.getCell(r,2).value=i+1; style(dash.getCell(r,2),bg,font(0,BK,10),al('center','middle'));
+    dash.getCell(r,3).value=a.col.name; style(dash.getCell(r,3),YEL,font(1,BK,10),al('left','middle'));
+    dash.getCell(r,4).value=Math.round(a.m.totRev); style(dash.getCell(r,4),bg,font(0,BK,10),al('right','middle'),'#,##0');
+    dash.getCell(r,5).value=Math.round(a.m.totCOG+a.m.dOH); style(dash.getCell(r,5),bg,font(0,BK,10),al('right','middle'),'#,##0');
+    dash.getCell(r,6).value=Math.round(a.m.totPnL); style(dash.getCell(r,6),bg,font(1,a.m.totPnL>=0?PF:LF,10),al('right','middle'),'#,##0;(#,##0)');
+    dash.getCell(r,7).value=a.m.margin; style(dash.getCell(r,7),bg,font(1,a.m.margin>=0.35?PF:(a.m.margin<0?LF:'FF7A4E00'),10),al('right','middle'),'0.0%');
+    dash.getCell(r,8).value=a.m.totUnits; style(dash.getCell(r,8),bg,font(0,BK,10),al('right','middle'),'#,##0');
+    dash.getRow(r).height=22;
+  });
+
+  // Totals
+  const tR3=all.reduce((s,a)=>s+a.m.totRev,0);
+  const tP3=all.reduce((s,a)=>s+a.m.totPnL,0);
+  const tC3=all.reduce((s,a)=>s+a.m.totCOG+a.m.dOH,0);
+  const tM3=tR3>0?tP3/tR3:0;
+  const tU3=all.reduce((s,a)=>s+a.m.totUnits,0);
+  const tr3=6+all.length+1;
+  dash.mergeCells(tr3,2,tr3,8);
+  dash.getCell(tr3,2).value='COMBINED TOTALS  (all collections)';
+  style(dash.getCell(tr3,2),SAGE2,font(1,'FFFFFFFF',11),al('left','middle'));
+  for(let c=3;c<=8;c++) dash.getCell(tr3,c).fill=fill(SAGE2);
+  dash.getRow(tr3).height=22;
+
+  [['TOTAL',2],['Revenue',4],['Total Cost',5],['Net Profit',6],['Margin %',7],['Units',8]].forEach(([h,c])=>{
+    dash.getCell(tr3+1,c).value=h; style(dash.getCell(tr3+1,c),'FFF0F0F0',font(0,BK,10),al('center','middle'));
+  });
+  dash.getCell(tr3+2,2).value='ALL'; style(dash.getCell(tr3+2,2),SAGE2,font(1,'FFFFFFFF',11),al('center','middle'));
+  dash.getCell(tr3+2,4).value=Math.round(tR3); style(dash.getCell(tr3+2,4),WH,font(1,PF,11),al('right','middle'),'#,##0');
+  dash.getCell(tr3+2,5).value=Math.round(tC3); style(dash.getCell(tr3+2,5),WH,font(1,BK,11),al('right','middle'),'#,##0');
+  dash.getCell(tr3+2,6).value=Math.round(tP3); style(dash.getCell(tr3+2,6),WH,font(1,tP3>=0?PF:LF,11),al('right','middle'),'#,##0;(#,##0)');
+  dash.getCell(tr3+2,7).value=tM3; style(dash.getCell(tr3+2,7),WH,font(1,tM3>=0.35?PF:(tM3<0?LF:'FF7A4E00'),11),al('right','middle'),'0.0%');
+  dash.getCell(tr3+2,8).value=tU3; style(dash.getCell(tr3+2,8),WH,font(1,BK,11),al('right','middle'),'#,##0');
+
+  // ── How To Use ──
+  const how=wb.addWorksheet('How To Use',{views:[{showGridLines:false}]});
+  how.getColumn(1).width=2; how.getColumn(2).width=24; how.getColumn(3).width=70;
+  how.mergeCells(1,2,1,3);
+  how.getCell(1,2).value='HOW TO USE THIS FILE';
+  style(how.getCell(1,2),BROWN,font(1,'FFFFFFFF',14),al('center','middle'));
+  how.getRow(1).height=28;
+  const tips=[
+    ['Dashboard tab','Overview of all collections — revenue, cost, net profit, margin.'],
+    ['Collection tabs','Each collection on its own sheet. Blue cells = your inputs only.'],
+    ['Blue cells','Fabric EGP/m, meters, manufacturing, zipper, sample, qty, price, sale %.'],
+    ['COST (auto)','Total COG, COG/unit, overhead/unit, total cost/unit.'],
+    ['PRICING (auto)','Sale price after discount, and breakeven price.'],
+    ['MARGINS (auto)','Margin at full price and after sale. Green 35%+, amber 15-35%, red below 0%.'],
+    ['PROFIT/LOSS','P&L per unit and total. Green bg = profitable. Red bg = loss.'],
+    ['RECOVERY','If loss: price for 20% margin, units to recover, loss as % of sale.'],
+    ['Collection Summary','KPI box at bottom: units, COG, overheads, revenue, P&L, margin count.'],
+    ['COG Formula','Fabric×m×Qty + Mfg×Qty + Zipper×Qty + Sample + TR(20)×Qty + LB(7.75)×Qty'],
+    ['Exported from','TES Dashboard · '+dateStr+' · theeditsociety-dotcom.github.io/tes-dashboard-update'],
+  ];
+  tips.forEach(([t,desc],i)=>{
+    const r=i+3;
+    how.getCell(r,2).value=t; style(how.getCell(r,2),BL,font(1,NAVY,10),al('left','middle'));
+    how.mergeCells(r,3,r,5);
+    how.getCell(r,3).value=desc; style(how.getCell(r,3),WH,font(0,BK,10),{horizontal:'left',vertical:'middle',wrapText:true});
+    how.getRow(r).height=22;
+  });
+
+  // ── Collection sheets ──
+  all.forEach(a=>makeCollSheet(a));
+
+  // ── Inventory sheet ──
+  const inv=wb.addWorksheet('Inventory',{views:[{showGridLines:false}]});
+  [18,22,10,9,10,10,13,14,14,11].forEach((w,i)=>inv.getColumn(i+1).width=w);
+  const invHdrs=['Collection','Product','Produced','Sold','Giveaway','Remaining','Sell-Through %','Status','Net P&L (EGP)','Margin %'];
+  invHdrs.forEach((h,i)=>{inv.getCell(1,i+1).value=h; style(inv.getCell(1,i+1),BROWN,font(1,'FFFFFFFF',9),al('center','middle',true));});
+  inv.getRow(1).height=24;
+  let ir=2;
+  all.forEach(a=>{
+    a.col.products.filter(p=>p.name).forEach((p,pi)=>{
+      const c=a.m.calcs[pi]; if(!c) return;
+      const sold=c.sellQty; const rem=Math.max(0,p.qty-sold-(p.giveaway||0));
+      const st=p.qty>0?sold/p.qty:0;
+      const status=st>=0.85?'Hot Seller':st>=0.70?'On Track':st>=0.50?'Slow Moving':'Dead Stock Risk';
+      const bg=ir%2===0?F7:WH;
+      const statusBg=status==='Hot Seller'?PG:status==='Dead Stock Risk'?LR:bg;
+      [a.col.name,p.name,p.qty,sold,p.giveaway||0,rem,st,status,Math.round(c.totPnl),c.marginSale].forEach((v,i)=>{
+        const cell=inv.getCell(ir,i+1);cell.value=v;
+        const fmts=[null,null,'#,##0','#,##0','#,##0','#,##0','0.0%',null,'#,##0;(#,##0)','0.0%'];
+        const fg=i===8?(c.totPnl>=0?PF:LF):(i===9?(c.marginSale>=0.35?PF:(c.marginSale<0?LF:BK)):BK);
+        style(cell,i===7?statusBg:bg,font(i>=8,fg,10),al(i>1?'right':'left','middle'),fmts[i]||'');
+      });
+      ir++;
+    });
+  });
+
+  // Generate and download
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.href=url; link.download=`TES-Dashboard-${dateStr}.xlsx`; link.click();
+  URL.revokeObjectURL(url);
+  showFlash('✓ Styled Excel exported with live data');
 }
 
 // ═══════════════════════════ MODAL ═══════════════════════════
@@ -1020,7 +1516,14 @@ function showModal(title,msg,cb,btnTxt='Confirm',btnColor='var(--danger)'){
   document.getElementById('modal-msg').textContent=msg;
   const ok=document.getElementById('modal-ok');
   ok.textContent=btnTxt; ok.style.background=btnColor;
-  ok.onclick=()=>{closeModal();if(_modalCb)_modalCb();};
+  // Clone node to remove any stale listeners
+  const newOk=ok.cloneNode(true);
+  ok.parentNode.replaceChild(newOk,ok);
+  newOk.onclick=()=>{
+    const cb=_modalCb; // capture before closeModal nulls it
+    closeModal();
+    if(cb) cb();
+  };
   const ov=document.getElementById('modal-overlay');
   ov.style.display='flex';
   requestAnimationFrame(()=>ov.style.opacity='1');
@@ -1047,16 +1550,18 @@ function getPillStyle(color){return `background:${color}22;color:${color};`;}
 
 // ═══════════════════════════ COLLECTION ACTIONS ═══════════════════════════
 function addCollection(){
+  pushUndo();
   const id='c'+Date.now();
   const color=PILL_COLORS[COLLS.length%PILL_COLORS.length];
   COLLS.push({id,name:'New Collection',color,pill:'pdrop1',
     oh:{ads:0,marketing:0,photoshoot:0,ugc:0},products:[]});
+  EDITOR_COLL_ID=id;
   saveData(); refreshAll(); nav('editor');
-  setTimeout(()=>document.getElementById('cname-'+id)?.focus(),100);
 }
 function deleteCollection(id){
   const col=COLLS.find(c=>c.id===id);
-  showModal(`Delete "${col?.name}"?`,`This will permanently remove the collection and all ${col?.products?.length||0} products.`,()=>{
+  showModal(`Delete "${col?.name}"?`,`This will remove the collection and all ${col?.products?.length||0} products. You can undo this.`,()=>{
+    pushUndo();
     COLLS=COLLS.filter(c=>c.id!==id);
     saveData(); refreshAll();
   });
@@ -1083,7 +1588,8 @@ function addProduct(collId){
 function deleteProduct(collId,pi){
   const col=COLLS.find(c=>c.id===collId);if(!col)return;
   const pname=col.products[pi]?.name||'this product';
-  showModal(`Delete "${pname}"?`,`This product and all its data will be removed from ${col.name}.`,()=>{
+  showModal(`Delete "${pname}"?`,`This product will be removed from ${col.name}. You can undo this.`,()=>{
+    pushUndo();
     col.products.splice(pi,1);
     saveData(); refreshAll();
   });
@@ -1127,11 +1633,37 @@ function updateTier(collId,pi,ti,field,val){
 }
 
 // ═══════════════════════════ BUILD EDITOR ═══════════════════════════
+function editorNavColl(id){
+  EDITOR_COLL_ID=id;
+  buildEditor();
+}
+
 function buildEditor(){
   const wrap=document.getElementById('editor-wrap');
   if(!wrap)return;
 
-  wrap.innerHTML=COLLS.map(col=>{
+  // Default to first collection if none selected or selection gone
+  if(!EDITOR_COLL_ID||!COLLS.find(c=>c.id===EDITOR_COLL_ID)){
+    EDITOR_COLL_ID=COLLS[0]?.id||null;
+  }
+
+  // ── Collection tab bar ──
+  const tabBar=`
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--mist)">
+      ${COLLS.map(col=>{
+        const active=col.id===EDITOR_COLL_ID;
+        return`<button onclick="editorNavColl('${col.id}')"
+          style="padding:7px 16px;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;border:1.5px solid;transition:all .15s;
+          background:${active?col.color:'transparent'};color:${active?'#fff':col.color};border-color:${col.color}${active?'':'88'};
+          ${active?'box-shadow:0 2px 8px '+col.color+'44':''}"
+          >${col.name}</button>`;
+      }).join('')}
+    </div>`;
+
+  // Only render the active collection
+  const visibleColls=COLLS.filter(col=>col.id===EDITOR_COLL_ID);
+
+  wrap.innerHTML=tabBar+visibleColls.map(col=>{
     const m=calcColl(col);
 
     // ── Overhead section ──
@@ -1164,6 +1696,13 @@ function buildEditor(){
     // ── Product cards ──
     const prodCards=col.products.map((p,pi)=>{
       const c2=m.calcs[pi];
+      // Calculate "if all sold" scenario
+      let c2all=null;
+      if(p.name){
+        const totCOG2=col.products.reduce((s,px)=>px.name?s+(px.fabric*px.meters*px.qty)+(px.mfg*px.qty)+((px.zipper||0)*px.qty)+(px.sample||0)+(TR*px.qty)+(LB*px.qty):s,0);
+        c2all=calcProdIfAllSold(p,m.dOH,totCOG2);
+      }
+      const isPartial=c2&&c2all&&Math.round(c2.sellQty)!==Math.round(c2all.sellQty);
       const tierRows=(p.tiers||[]).map((t,ti)=>`
         <div style="display:grid;grid-template-columns:80px 1fr auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--mist)">
           <div>
@@ -1206,8 +1745,26 @@ function buildEditor(){
               onkeydown="if(event.key==='Enter')this.blur()"
               onfocus="this.style.borderBottomColor='var(--gold)'"
               onblur2="this.style.borderBottomColor='transparent'"/>
-            ${c2?`<span class="kb ${mb(c2.marginSale)}" style="flex-shrink:0">${fp(c2.marginSale)}</span>
-            <span class="fm" style="font-size:12px;font-weight:600;color:${c2.totPnl>=0?'var(--good)':'var(--danger)'};flex-shrink:0">EGP ${f(c2.totPnl)}</span>`:''}
+            ${c2?`
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+              ${isPartial?`
+              <div style="display:flex;align-items:center;gap:5px">
+                <span style="font-size:9px;color:var(--char);opacity:.55;white-space:nowrap">Actual sold:</span>
+                <span class="kb ${mb(c2.marginSale)}">${fp(c2.marginSale)}</span>
+                <span class="fm" style="font-size:11.5px;font-weight:700;color:${c2.totPnl>=0?'var(--good)':'var(--danger)'}">EGP ${f(c2.totPnl)}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px">
+                <span style="font-size:9px;color:var(--sage);opacity:.8;white-space:nowrap">If all sold:</span>
+                <span class="kb" style="background:rgba(46,95,163,.12);color:var(--sage)">${fp(c2all.marginSale)}</span>
+                <span class="fm" style="font-size:11.5px;font-weight:700;color:var(--sage)">EGP ${f(c2all.totPnl)}</span>
+              </div>
+              `:` 
+              <div style="display:flex;align-items:center;gap:5px">
+                <span class="kb ${mb(c2.marginSale)}">${fp(c2.marginSale)}</span>
+                <span class="fm" style="font-size:12px;font-weight:600;color:${c2.totPnl>=0?'var(--good)':'var(--danger)'}">EGP ${f(c2.totPnl)}</span>
+              </div>
+              `}
+            </div>`:''}
             <button onclick="deleteProduct('${col.id}',${pi})"
               style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;opacity:.4;padding:2px 6px;flex-shrink:0" title="Delete product">🗑</button>
           </div>
@@ -1529,9 +2086,10 @@ function refreshAll(){
 // ═══════════════════════════ INIT ═══════════════════════════
 window.addEventListener('DOMContentLoaded',async ()=>{
   applyPinState();
-  await loadData(); // load from Supabase (or fallback) before rendering
+  await loadData();
   buildKPI(); buildProducts(); buildColls(); buildInv(); buildMkt();
   buildAI(); buildLeaks(); buildC(); buildEditor(); buildSM(); initSim(); calcPlan();
+  updateUndoBtn();
 });
 </script>
 </body>
